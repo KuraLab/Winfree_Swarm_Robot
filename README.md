@@ -1,4 +1,4 @@
-# winfree-chain-robots
+# Winfree_Swarm_Robot
 
 Winfree 型パルス結合振動子による群ロボット制御の実機コード一式（倉林研究室）。
 ESP32 ベースの全方向移動ロボットを、局所的・匿名の IR 結合だけで等間隔に並べるための
