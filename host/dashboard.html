@@ -1,0 +1,2349 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Winfree Swarm Console — 直列実験</title>
+<style>
+  :root{
+    --bg:#0A0A0D;
+    --panel:#131317;
+    --panel2:#1C1C22;
+    --border:#2A2A32;
+    --text:#EDEBE6;
+    --text-dim:#A3A1AC;
+    --text-faint:#68666F;
+    --amber:#F2A93C;
+    --cyan:#35D6C4;
+    --danger:#FF5C72;
+    --warn:#FFB454;
+    --ok:#3ED98A;
+    --canvas-line:#33333C;
+    --mono: ui-monospace, "SF Mono", "Roboto Mono", "JetBrains Mono", Consolas, monospace;
+    --sans: -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html{color-scheme:dark;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
+  ::selection{background:rgba(242,169,60,0.30);}
+  a{color:var(--cyan);}
+  button{font-family:var(--sans);cursor:pointer;}
+  input{font-family:var(--mono);}
+  :focus-visible{outline:2px solid var(--amber);outline-offset:2px;}
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;}
+  }
+
+  /* ---------- Topbar ---------- */
+  .topbar{
+    display:flex;align-items:center;gap:16px;
+    padding:14px 20px;border-bottom:1px solid var(--border);
+    background:linear-gradient(180deg,var(--panel),var(--bg));
+    position:sticky;top:0;z-index:10;flex-wrap:wrap;
+  }
+  .brand{font-weight:700;letter-spacing:0.04em;font-size:15px;color:var(--text);}
+  .brand small{display:block;font-weight:400;color:var(--text-faint);font-size:11px;letter-spacing:0.08em;margin-top:2px;}
+  .spacer{flex:1;}
+  .stat{font-family:var(--mono);font-size:12px;color:var(--text-dim);}
+  .stat b{color:var(--text);}
+  .stat.recording{color:var(--danger);font-weight:700;}
+  .btn{
+    background:var(--panel2);border:1px solid var(--border);color:var(--text);
+    padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;
+    transition:border-color .15s, background .15s;
+  }
+  .btn:hover{border-color:var(--amber);}
+  .btn.primary{background:var(--amber);color:#1a1506;border-color:var(--amber);}
+  .btn.primary:hover{background:#FFC266;}
+  .btn.small{padding:5px 10px;font-size:11px;border-radius:6px;}
+  .btn.danger:hover{border-color:var(--danger);}
+  .btn:disabled{opacity:0.4;cursor:not-allowed;}
+
+  /* ---------- 折りたたみ風パネル共通スタイル（各種操作パネルで再利用） ---------- */
+  .phasepanel{margin:0 20px 8px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px;}
+  .phasehead{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;}
+  .phasetitle{font-size:12px;color:var(--text-dim);}
+  .phaselegend{display:flex;flex-wrap:wrap;gap:10px;font-family:var(--mono);font-size:10px;color:var(--text-faint);}
+  .phaselegend .swatch{display:inline-flex;align-items:center;gap:4px;}
+  .phaselegend .dotswatch{width:8px;height:8px;border-radius:50%;display:inline-block;}
+  .toolbox{margin:0 20px 8px;}
+  .toolbox summary{padding:8px 4px;font-size:12px;color:var(--text-dim);letter-spacing:0.03em;
+    background:var(--panel);border:1px solid var(--border);border-radius:10px;list-style:none;
+    display:flex;align-items:center;gap:6px;}
+  .toolbox summary::-webkit-details-marker{display:none;}
+  .toolbox summary:before{content:"▸";color:var(--text-faint);transition:transform .15s;}
+  .toolbox[open] summary:before{transform:rotate(90deg);}
+  .toolbox[open] summary{border-radius:10px 10px 0 0;border-bottom:none;}
+  .toolbox .toolboxbody{border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;
+    padding:10px 16px 4px;background:var(--panel);}
+  .toolbox .phasepanel{margin:0 0 10px;border:none;background:transparent;padding:0;}
+
+  .batchparamrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .batchparamrow select{background:var(--panel2);border:1px solid var(--border);color:var(--text);
+    border-radius:6px;padding:7px 10px;font-size:12px;font-family:var(--sans);}
+  .batchparamrow input{width:110px;background:var(--panel2);border:1px solid var(--border);color:var(--text);
+    border-radius:6px;padding:7px 10px;font-size:12px;}
+  .batchparamrow select:focus, .batchparamrow input:focus{border-color:var(--cyan);}
+
+  /* ---------- Gap viewer ---------- */
+  .gapdrop{
+    border:2px dashed var(--border);border-radius:10px;background:var(--panel2);
+    padding:24px 16px;text-align:center;color:var(--text-dim);
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .gapdrop.drag{border-color:var(--amber);background:var(--panel2);}
+  .gapdrop .gtitle{font-size:13px;color:var(--text);font-weight:600;margin-bottom:4px;}
+  .gapdrop .gsub{font-size:11.5px;color:var(--text-faint);margin-bottom:12px;}
+  .gapdrop input[type=file]{display:none;}
+  .gap-filename{font-family:var(--mono);font-size:11.5px;color:var(--text-dim);margin-top:8px;}
+  .gap-err{background:rgba(255,92,114,0.10);border:1px solid rgba(255,92,114,0.45);color:var(--danger);padding:10px 14px;border-radius:8px;font-size:12.5px;margin-top:10px;}
+  .gap-select-row{display:flex;gap:20px;flex-wrap:wrap;margin:12px 0 4px;}
+  .gap-select-row div{display:flex;flex-direction:column;gap:4px;}
+  .gap-select-row label{font-size:11.5px;color:var(--text-dim);}
+  .gap-order-item{display:flex;flex-direction:column;gap:4px;align-items:center;}
+  .gap-order-item .gap-order-idx{font-family:var(--mono);font-size:10.5px;color:var(--text-faint);}
+  .gap-order-arrow{align-self:center;color:var(--text-faint);font-size:16px;margin-top:16px;}
+  .gap-pairtable{border-collapse:collapse;font-size:12px;margin:10px 0 4px;width:100%;}
+  .gap-pairtable th, .gap-pairtable td{padding:5px 10px;text-align:right;border-bottom:1px solid var(--border);font-family:var(--mono);}
+  .gap-pairtable th{color:var(--text-faint);font-weight:600;text-align:right;}
+  .gap-pairtable td:first-child, .gap-pairtable th:first-child{text-align:left;font-family:var(--sans);}
+  .gap-pairtable .gswatch{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;}
+  .gap-pairtable .gv-ok{color:var(--ok);}
+  .gap-pairtable .gv-warn{color:var(--warn);}
+  .gap-pairtable .gv-danger{color:var(--danger);}
+  .gap-legend{display:flex;flex-wrap:wrap;gap:12px;font-family:var(--mono);font-size:10.5px;color:var(--text-faint);margin-top:6px;}
+  .gap-legend .gswatch{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;}
+  .gap-metrics{display:flex;gap:24px;flex-wrap:wrap;margin:14px 0 4px;}
+  .gap-metric{min-width:110px;}
+  .gap-metric .gval{font-family:var(--mono);font-size:20px;font-weight:700;color:var(--text);}
+  .gap-metric .glbl{font-size:10.5px;color:var(--text-faint);letter-spacing:.04em;text-transform:uppercase;margin-top:2px;}
+  .gap-metric .gval.ok{color:var(--ok);}
+  .gap-metric .gval.warn{color:var(--warn);}
+  .gap-metric .gval.danger{color:var(--danger);}
+  #gapChartWrap{position:relative;width:100%;height:340px;margin-top:12px;}
+  #gapChart{width:100% !important;height:100% !important;}
+  .gap-toggle{display:flex;align-items:center;gap:16px;margin-top:10px;font-size:11.5px;color:var(--text-dim);flex-wrap:wrap;}
+  .gap-toggle label{display:flex;align-items:center;gap:6px;cursor:pointer;}
+  .gap-toggle input[type=number]{font-family:var(--mono);font-size:11.5px;padding:4px 6px;border-radius:5px;border:1px solid var(--border);background:var(--panel2);color:var(--text);}
+
+  /* ---------- Grid ---------- */
+  .grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+    gap:12px;padding:16px 20px 60px;
+  }
+  .card{
+    background:var(--panel);border:1px solid var(--border);border-radius:12px;
+    padding:14px;display:flex;flex-direction:column;gap:10px;
+    transition:border-color .2s;
+  }
+  .card.offline{opacity:0.45;}
+  .card.danger{border-color:var(--danger);}
+  .card.leader{border-color:var(--amber);box-shadow:0 0 0 1px var(--amber), 0 0 18px rgba(242,169,60,0.20);}
+  .cardhead{display:flex;align-items:center;gap:8px;}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--text-faint);flex:none;}
+  .dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok);}
+  .dot.off{background:var(--danger);}
+  .label{font-weight:700;font-size:14px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:text;}
+  .label:hover{color:var(--amber);}
+  .macid{font-family:var(--mono);font-size:10px;color:var(--text-faint);}
+  .checkbox{width:14px;height:14px;accent-color:var(--amber);}
+
+  .row{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-dim);}
+  .metarow{font-family:var(--mono);font-size:11px;color:var(--text-faint);display:flex;justify-content:space-between;}
+
+  .barlabel{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-bottom:3px;}
+  .barlabel b{color:var(--text);font-weight:600;}
+  .bartrack{height:8px;border-radius:4px;background:var(--panel2);border:1px solid var(--border);overflow:hidden;position:relative;}
+  .barfill{height:100%;border-radius:4px;transition:width .2s ease;}
+  .barmark{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--text);opacity:0.6;}
+
+  .subnote{font-family:var(--mono);font-size:10px;color:var(--text-faint);margin-top:3px;}
+  .rate{font-variant-numeric:tabular-nums;}
+  .cbfbadge{font-family:var(--mono);font-size:10px;padding:1px 6px;border-radius:10px;background:var(--panel2);border:1px solid var(--border);color:var(--text-faint);}
+  .cbfbadge.on{color:#1a1506;background:var(--danger);border-color:var(--danger);}
+  .rolebadge{font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;
+    background:var(--panel2);border:1px solid var(--border);color:var(--text-faint);cursor:pointer;
+    letter-spacing:0.03em;flex:none;}
+  .rolebadge:hover{border-color:var(--amber);}
+  .rolebadge.leader{background:var(--amber);color:#1a1506;border-color:var(--amber);}
+  .rolebadge.follower{color:var(--text-dim);}
+  .sensorcanvas{width:100%;height:140px;display:block;}
+  .sumvcanvas{width:100%;height:140px;display:block;}
+  .rawcanvas{width:100%;height:140px;display:block;}
+  .calbasesub{font-family:var(--mono);white-space:pre-wrap;word-break:break-all;line-height:1.6;}
+
+  details{border-top:1px solid var(--border);padding-top:8px;}
+  summary{cursor:pointer;font-size:11px;color:var(--text-dim);letter-spacing:0.05em;list-style:none;display:flex;align-items:center;gap:4px;}
+  summary::-webkit-details-marker{display:none;}
+  summary:before{content:"▸";color:var(--text-faint);transition:transform .15s;}
+  details[open] summary:before{transform:rotate(90deg);}
+
+  .paramgrid{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
+  .paramrow{display:flex;align-items:center;gap:6px;}
+  .paramrow label{flex:1;font-size:10.5px;color:var(--text-dim);}
+  .paramrow input{width:76px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:4px 6px;font-size:11px;}
+  .paramrow input:focus{border-color:var(--cyan);}
+  .paramrow select{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:4px 6px;font-size:11px;}
+  .paramrow select:focus{border-color:var(--cyan);}
+  select{background:var(--panel2);border:1px solid var(--border);color:var(--text);}
+  .hzreadout{font-family:var(--mono);font-size:10px;color:var(--text-faint);white-space:nowrap;}
+
+  .otabox{margin-top:8px;display:flex;flex-direction:column;gap:6px;}
+  .otafile{font-size:10.5px;color:var(--text-faint);}
+  .otalog{background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:6px;font-family:var(--mono);font-size:9.5px;color:var(--text-dim);height:60px;overflow-y:auto;white-space:pre-wrap;line-height:1.4;}
+
+  .empty{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--text-faint);font-family:var(--mono);font-size:12px;}
+  .toast{position:fixed;bottom:16px;right:16px;background:var(--panel);border:1px solid var(--border);
+    padding:10px 14px;border-radius:8px;font-size:12px;color:var(--text-dim);max-width:320px;z-index:50;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">WINFREE SWARM CONSOLE<small>firefly-coupled multi-robot control — 直列実験対応</small></div>
+  <div class="spacer"></div>
+  <div class="stat">オンライン <b id="onlineCount">0</b> / <b id="totalCount">0</b></div>
+  <button class="btn" id="renameHint" title="ラベルはクリックで編集できます" style="opacity:.6;cursor:default;">✎ ラベルはクリックで編集</button>
+  <input type="file" id="batchFile" accept=".bin" style="display:none;">
+  <button class="btn" id="batchOtaBtn" title=".inoではなく.bin（Arduino IDEでコンパイル済みバイナリをエクスポート）を選択してください">選択機体へ一括OTA</button>
+  <button class="btn primary" id="startAllBtn">⚡ 一斉起動 (RUN)</button>
+  <button class="btn" id="stopAllBtn">⏸ 一斉停止 (STOP・較正値は保持)</button>
+  <button class="btn" id="startLogBtn" title="CSVログの記録を開始します（bridge_server.pyのlogsフォルダに新しいファイルを作成）">● ログ開始</button>
+  <button class="btn" id="stopLogBtn" title="CSVログの記録を停止します" disabled>■ ログ停止</button>
+  <span class="stat" id="loggingStatus">ログ: 停止中</span>
+</div>
+
+
+<details class="toolbox">
+  <summary>一括操作パネル（フォロワー一括パラメータ / 永続化 / 起動停止 / キャリブレーション）</summary>
+  <div class="toolboxbody">
+
+    <div class="phasepanel">
+      <div class="phasehead">
+        <span class="phasetitle">フォロワー一括パラメータ変更</span>
+        <span class="subnote" id="batchParamStatus"></span>
+      </div>
+      <div class="batchparamrow">
+        <select id="batchParamKey"></select>
+        <input type="number" id="batchParamValue" step="any" placeholder="値">
+        <span class="hzreadout" id="batchParamHz"></span>
+        <button class="btn" id="batchParamApplyBtn">全フォロワーに適用</button>
+      </div>
+    </div>
+
+    <div class="phasepanel">
+      <div class="phasehead">
+        <span class="phasetitle">パラメータ設定の永続化（電源再投入後の自動復元）</span>
+        <span class="subnote" id="roleDefaultsStatus">未保存</span>
+      </div>
+      <div class="batchparamrow">
+        <button class="btn primary" id="updateRoleDefaultsBtn">現在のリーダー・フォロワー設定を更新</button>
+        <button class="btn" id="applyRoleDefaultsBtn">保存済み設定を今すぐ全機に反映</button>
+        <button class="btn" id="copyParamsBtn" title="現在保持している設定を実験記録用のテキストとしてコピーします">📋 現在の設定をコピー</button>
+        <span class="subnote">「適用」ボタンで送信した値をロボットの役割(leader/follower)ごとに記憶しておき、
+          ロボットの電源を入れ直した際に自動で再送します（1個ずつ手動で設定し直す必要が無くなります）。
+          左のボタンで現在の値をサーバーに保存、右のボタンは保存済みの値を今オンラインの全機へ即座に配ります。
+          「📋」ボタンでその時点のleader/follower設定をテキストでコピーできます（チャットに貼り付け用）。</span>
+      </div>
+    </div>
+
+    <div class="phasepanel">
+      <div class="phasehead">
+        <span class="phasetitle">選択機体の起動・停止（カード左上のチェックボックスで選択）</span>
+        <span class="subnote" id="batchRunStatus"></span>
+      </div>
+      <div class="batchparamrow">
+        <button class="btn primary" id="batchRunBtn">選択機体を起動 (RUN)</button>
+        <button class="btn" id="batchStopBtn">選択機体を停止 (STOP・較正値は保持)</button>
+        <span class="subnote">未選択の場合は全機に対する上部の「一斉起動/一斉停止」を使ってください。</span>
+      </div>
+    </div>
+
+    <div class="phasepanel">
+      <div class="phasehead">
+        <span class="phasetitle">1体キャリブレーション（カード左上のチェックボックスで選択、複数可）</span>
+        <span class="subnote" id="batchCalStatus"></span>
+      </div>
+      <div class="batchparamrow">
+        <button class="btn" id="batchCalSingleBtn">選択機体へ1体キャリブレーション（静止）</button>
+        <span class="subnote">周囲に他ロボットがいないベンチテスト向け。複数選択時はラベル番号順に1台ずつ自動で順番に実行します。</span>
+      </div>
+    </div>
+
+    <div class="phasepanel">
+      <div class="phasehead">
+        <span class="phasetitle">2機で相互キャリブレーション（カード左上のチェックボックスで、ちょうど2機を選択）</span>
+        <span class="subnote" id="mutualCalStatus"></span>
+      </div>
+      <div class="batchparamrow">
+        <button class="btn" id="mutualCalBtn">選択した2機で相互キャリブレーション実行</button>
+        <span class="subnote">一方を5秒間回転させ、その間もう一方をIR発光（赤）→停止・IR消灯（青）でベースライン測定。
+          終わったら役割を交代して同じ手順を行います。ビーコン制御はダッシュボードが自動で行うため、
+          手動でIRビーコンモードを触る必要はありません。</span>
+      </div>
+    </div>
+
+  </div>
+</details>
+
+<details class="toolbox">
+  <summary>ロボット間距離ビューア（ログCSVを読み込んでグラフ化）</summary>
+  <div class="toolboxbody">
+
+    <div class="phasepanel">
+      <div class="phasehead">
+        <span class="phasetitle">ログCSVの読み込み</span>
+        <span class="subnote" id="gapFileStat"></span>
+      </div>
+      <div class="gapdrop" id="gapDropzone">
+        <div class="gtitle">CSVをドロップ、または選択</div>
+        <div class="gsub">bridge_server.py が出力する winfree_log_*.csv をそのまま読み込めます</div>
+        <label class="btn" for="gapFileInput" style="display:inline-block;">ファイルを選択</label>
+        <input type="file" id="gapFileInput" accept=".csv">
+        <div class="gap-filename" id="gapFilename"></div>
+      </div>
+      <div id="gapErrorBox"></div>
+
+      <div id="gapConfigRow" style="display:none;">
+        <span class="subnote" style="display:block;margin-bottom:6px;">チェーンの並び順（先頭=leader側）を指定してください。連続するペアごとにOR結合ギャップを計算します。</span>
+        <div class="gap-select-row" id="gapOrderRow"></div>
+      </div>
+      <div class="gap-toggle" id="gapToggleRow" style="display:none;">
+        <label><input type="checkbox" id="gapSteadyToggle" checked> 定常区間のみで統計を計算</label>
+        <label>開始 <input type="number" id="gapStartInput" value="5" step="1" min="0" style="width:60px;">s</label>
+        <label>終了 <input type="number" id="gapEndInput" placeholder="指定なし" step="1" min="0" style="width:80px;">s</label>
+      </div>
+
+      <div id="gapResultBlock" style="display:none;">
+        <table class="gap-pairtable" id="gapPairTable"></table>
+        <div id="gapChartWrap"><canvas id="gapChart"></canvas></div>
+        <div class="gap-legend" id="gapLegend"></div>
+      </div>
+
+
+      <span class="subnote">クロック較正: utc_time(秒精度)が一致する行同士でt_robotの差の中央値をオフセットとして推定し、
+        片方のt_robotを補正してから最近傍(±0.3s)でマージします。ギャップはfwdが有効ならfwd値、
+        無効ならback値というOR結合です。縦軸は0〜0.5m固定で表示します。</span>
+    </div>
+
+  </div>
+</details>
+
+<div class="grid" id="grid">
+  <div class="empty" id="emptyMsg">テレメトリ待機中... ロボットの電源を入れると自動的にカードが表示されます</div>
+</div>
+
+<div id="toastArea"></div>
+
+<template id="cardTemplate">
+  <div class="card">
+    <div class="cardhead">
+      <input type="checkbox" class="checkbox batchcheck">
+      <span class="dot"></span>
+      <span class="label" tabindex="0" title="クリックで名前を変更"></span>
+      <span class="rolebadge" tabindex="0" title="クリックでleader/follower切替"></span>
+    </div>
+    <div class="metarow"><span class="macid"></span><span class="ip"></span></div>
+    <div class="metarow"><span class="lastseen">-- 秒前</span><span class="rate" title="WiFi通信（テレメトリUDPパケット）の受信頻度。omegaとは無関係">通信 -- Hz</span></div>
+    <div class="metarow"><span class="phaseinfo">φ=--- active=-</span><span class="cbfbadge"></span></div>
+
+    <div class="manualdrivepanel" style="display:none;">
+      <div class="barlabel"><span>🎮 手動操縦（PC矢印キー+QE回転、leader専用）</span></div>
+      <div class="paramrow">
+        <label>前後[rpm]</label>
+        <input type="number" class="manualFwdRpm" value="30" min="0" max="200" step="5">
+        <label>左右[rpm]</label>
+        <input type="number" class="manualSideRpm" value="30" min="0" max="200" step="5">
+      </div>
+      <div class="paramrow">
+        <label>回転[rpm]</label>
+        <input type="number" class="manualRotRpm" value="30" min="0" max="200" step="5">
+      </div>
+      <div class="paramrow">
+        <button class="btn small manualDriveBtn">🎮 矢印キーで操作</button>
+        <span class="subnote manualDriveStatus"></span>
+      </div>
+      <div class="subnote">↑↓で前後、←→で真横に平行移動、Q/Eでその場回転（同時押しで斜め移動や並進+回転も可）。
+        入力欄・ボタン・折りたたみパネルなど、他の要素にフォーカスがあると矢印キー/QEは効きません。
+        キーを離すか通信が0.4秒途切れると自動停止します。
+        左右が逆に感じる場合はダッシュボードのJS内 manualComputeAndSend() のside符号を、
+        回転方向が逆に感じる場合はQ/Eの符号を反転してください。</div>
+    </div>
+
+    <div>
+      <div class="barlabel"><span>最近傍障害物</span><b class="distval">--</b></div>
+      <div class="bartrack"><div class="barfill distbar" style="width:0%;background:var(--amber);"><div class="barmark dsafemark"></div></div></div>
+      <div class="subnote obstaclesub"></div>
+    </div>
+
+    <div>
+      <div class="barlabel"><span>チェーン距離（前方/後方ゾーン、直列実験用）</span><b class="chainval">--</b></div>
+      <div class="subnote chainsub"></div>
+    </div>
+
+    <details class="graphdetails">
+      <summary>グラフ（sumV / 12ch電圧 / 生電圧）</summary>
+      <div>
+        <div class="barlabel" style="margin-top:8px;"><span>sumV(t)（センサ受光合計、直近12秒）</span><b class="sumvval">--</b></div>
+        <canvas class="sumvcanvas" width="264" height="140"></canvas>
+        <div class="subnote rawsumv"></div>
+      </div>
+
+      <div>
+        <div class="barlabel"><span>12ch センサ電圧 V0-V11</span><span class="subnote">V_ON基準線</span></div>
+        <canvas class="sensorcanvas" width="264" height="140"></canvas>
+      </div>
+
+      <div class="rawpanel">
+        <div class="barlabel"><span>生電圧 raw_V（cal_V/V_base正規化前、ch0-11）</span><span class="subnote">網掛け=cal_V幅</span></div>
+        <canvas class="rawcanvas" width="264" height="140"></canvas>
+        <div class="subnote calbasesub">cal_V/base_V: --</div>
+      </div>
+    </details>
+
+    <details>
+      <summary>パラメータ調整</summary>
+      <div class="paramgrid"></div>
+    </details>
+
+    <details>
+      <summary>モーター単体テスト（配線・エンコーダ故障の切り分け用）</summary>
+      <div class="paramgrid">
+        <div class="subnote">
+          指定した1輪だけに目標rpmを直接指定します（ファーム既存の manual_override 機構、
+          "1"/"2"/"3"コマンド）。Winfree/CBFによる上書きは自動的に止まり、実測rpmと目標rpmを
+          見比べられます。指定時間が経過すると自動的に"0"（全停止・手動モード解除）を送ります。
+          実行前にロボットを持ち上げるか周囲に十分なスペースを確保してください。
+        </div>
+        <div class="paramrow">
+          <label>対象輪</label>
+          <select class="mtestWheel">
+            <option value="1">wheel0 (M1)</option>
+            <option value="2">wheel1 (M2)</option>
+            <option value="3">wheel2 (M3)</option>
+          </select>
+        </div>
+        <div class="paramrow">
+          <label>目標rpm（符号で正逆転）</label>
+          <input type="number" class="mtestRpm" value="15" min="-240" max="240" step="1">
+        </div>
+        <div class="paramrow">
+          <label>実行時間 [ms]</label>
+          <input type="number" class="mtestDur" value="1500" min="200" max="8000" step="100">
+        </div>
+        <div class="paramrow">
+          <button class="btn small primary mtestRunBtn">▶ この輪だけ回す</button>
+          <button class="btn small mtestStopBtn">■ 即停止</button>
+          <span class="subnote mtestStatus"></span>
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary>LiDARスキャン周波数（混信対策・ラベル番号nから自動割当）</summary>
+      <div class="paramgrid">
+        <div class="subnote lidarhzsub">現在の割当: --</div>
+        <div class="paramrow">
+          <label>手動で上書き [Hz]（5〜13。空欄で自動割当に戻す）</label>
+          <input type="number" class="lidarhzinput" step="0.5" min="5" max="13" placeholder="自動">
+          <button class="btn small lidarhzApplyBtn">適用</button>
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary>OTA書き込み</summary>
+      <div class="otabox">
+        <div class="subnote">.inoではなく.bin（Arduino IDE: スケッチ→コンパイル済みバイナリをエクスポート）</div>
+        <input type="file" class="otafileinput" accept=".bin">
+        <div class="otafile">未選択</div>
+        <button class="btn small otaBtn">このロボットに書き込み</button>
+        <div class="otalog"></div>
+      </div>
+    </details>
+  </div>
+</template>
+
+<script>
+"use strict";
+
+// dashboard.htmlをダブルクリックして直接開いた場合（file://）はサーバーに接続できないため、
+// 分かりにくいfetchエラーを見せる前にここで検知して案内を出す。
+if (location.protocol === "file:"){
+  document.body.innerHTML = `
+    <div style="max-width:640px;margin:100px auto;padding:32px 36px;background:var(--panel);
+                border:1px solid var(--border);border-radius:12px;color:var(--text);
+                font-family:-apple-system,'Segoe UI',sans-serif;line-height:1.9;">
+      <h2 style="margin-top:0;color:var(--amber);">このファイルは直接開けません</h2>
+      <p>dashboard.htmlをダブルクリックして開いているようです（アドレスバーが
+        <code style="background:var(--panel2);padding:2px 6px;border-radius:4px;">file://...</code>
+        になっています）。</p>
+      <p>先に中継サーバーを起動してください：</p>
+      <pre style="background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:14px 18px;
+                   overflow-x:auto;color:var(--cyan);">pip install aiohttp --break-system-packages
+python3 bridge_server.py</pre>
+      <p>ターミナルに表示される、次のようなURLにブラウザでアクセスしてください：</p>
+      <pre style="background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:14px 18px;
+                   color:var(--cyan);">[HTTP] ダッシュボード: http://&lt;このPCのIP&gt;:8080</pre>
+      <p style="color:var(--text-dim);font-size:13px;">dashboard.htmlはbridge_server.pyと同じフォルダに置いてください。</p>
+    </div>`;
+  throw new Error("file://で開かれたため、これ以降の初期化を中断しました（上の案内を参照）");
+}
+
+// ================================================================
+//  設定
+// ================================================================
+const STALE_SEC = 3.0;      // この秒数テレメトリが来なければオフライン扱い
+const RENDER_FPS = 15;      // 描画スロットリング（メッセージ頻度とDOM更新頻度を分離してカクつき防止）
+const HISTORY_LEN = 240;    // クロック用の簡易履歴（未使用だが将来のスパークライン拡張用に確保）
+const D_SAFE_DEFAULT = 0.30; // 距離バーの目安線[m]（ファームウェアのD_SAFEと同じ既定値。実値を変えたらここも合わせる）
+const DIST_MAX = 0.75;       // 距離バーの上限[m]（winfree_sensor_monitor.pyのax_dist ylimと同じ）
+const SUMV_MAX = 2.5;        // sumVバーの上限（winfree_sensor_monitor.pyのax_sens ylimと同じ）
+
+// canvas 2D contextはCSS変数(var(--...))を直接解釈できないため、:rootの配色と対応する
+// 実色をここに複製して保持する。配色を変える場合は:rootとここを両方更新すること。
+const CHART = {
+  textDim:    "#A3A1AC",
+  gridMain:   "#3A3A44",              // 主目盛り線（0線・軸囲みなど）
+  gridFaint:  "rgba(237,235,230,0.07)", // 補助目盛りの破線
+  amber:      "#F2A93C",
+  amberFaint: "#3A3226",              // amber未検出時のバー等（暗いamber）
+  cyan:       "#35D6C4",
+  danger:     "#FF5C72",
+  dim:        "#46454F",              // 非検出/非強調時の暗いバー色
+  trackFill:  "rgba(163,161,172,0.14)", // バー背景トラック
+};
+
+const PARAMS = [
+  // 'g'はロールによって意味が異なる（follower: 速度ゲインK_P_RPM / leader: 定速走行の
+  // 目標CONST_DRIVE_RPM）。コマンド文字は共通なのでkeyは同じにし、表示ラベルだけ
+  // ロールごとに出し分ける（labelLeader/labelFollower。buildParamGrid()側で使用）。
+  // リーダーで最も頻繁に触るパラメータなので先頭に配置。
+  {key:"g", label:"K_P / kP / DRIVE_RPM", labelFollower:"K_P (follower速度ゲイン) [rpm相当]",
+   labelLeader:"CONST_DRIVE_RPM（リーダー速度）[rpm]", step:10},
+  {key:"o", label:"ω omega 入力値 [Hz] (送信時に2π倍してrad/sに変換)", step:0.01, hz:true},
+  {key:"k", label:"κ kappa", step:0.1},
+  {key:"t", label:"τ tau", step:0.01},
+  {key:"f", label:"CONF_MIN (LiDAR confidence floor)", step:5},
+  {key:"v", label:"V_ON (follower)", step:0.01, roles:["follower"]},
+  {key:"P", label:"Kp (PID)", step:0.1},
+  {key:"I", label:"Ki (PID)", step:0.1},
+  {key:"D", label:"Kd (PID)", step:0.1},
+  // 速度指令の一次遅れフィルタ時定数。Winfreeパルス駆動で矩形的だった速度指令を滑らかにする。
+  // 0=無効（従来通り瞬時反映）。結合パルス幅(70〜140ms)・周期(400〜500ms)より十分小さく
+  // 取ること（既定0.03=30ms）。大きすぎるとピークに到達する前に次のパルスが来て実効速度が落ちる。
+  {key:"L", label:"tau_filt(rise) [s] (速度指令の一次遅れ時定数・立ち上がり側、既定0.03、0で無効)",
+   step:0.005, default:0.03},
+  // 立ち下がり側（|pid_target|が減る方向、0への収束を含む）専用の時定数。Lと分けることで、
+  // 応答の速さ(L=立ち上がり)は保ったまま、指令が消えた後だけ長く回転を保つ非対称フィルタになる。
+  // Lと同じ既定値0.03なら従来通りの対称フィルタと変わらない挙動。
+  {key:"F", label:"tau_filt_fall [s] (同・立ち下がり側。Lより大きくすると指令消失後も長く回転を保つ、既定0.03)",
+   step:0.005, default:0.03},
+  {key:"s", label:"D_SAFE [m] (follower)", step:0.05, roles:["follower"]},
+  {key:"G", label:"CBF_GAMMA (follower)", step:0.1, roles:["follower"]},
+  {key:"m", label:"MOTORS_ENABLED 0/1", step:1, roles:["follower"]},
+  // WS2812B表示モード。既定=位相虹色（φ=0で赤、2π/3で青、4π/3で緑、連続的に色相環を一周）。
+  // 0にすると従来のIR発光同期の青パルス点滅表示に戻る。
+  {key:"r", label:"LED_RAINBOW_MODE 0/1 (WS2812B: 位相虹色表示。0でIR同期青パルスに戻す。既定1)",
+   step:1, default:1},
+  // 直列軸拘束: Winfree速度指令をチェーン軸方向の直線に射影し、横ドリフトを防ぐ（既定1=有効）。
+  // CBFはこの拘束の対象外（射影後の速度に対して通常通り全方位で安全動作する）。
+  {key:"a", label:"CHAIN_AXIS_LOCK 0/1 (follower・直列軸拘束、既定1)", step:1, roles:["follower"], default:1},
+  // CHAIN_AXIS_LOCK有効時に軸外（横）成分をどれだけ残すか。0=完全ロック（自己修正不可）、
+  // 1=ロック無効と同義。軸ロックにより横ドリフトの自己修正手段まで失われる問題の調整弁。
+  {key:"j", label:"CHAIN_LATERAL_GAIN 0-1 (follower・軸外成分の残存率、既定0.3)",
+   step:0.05, roles:["follower"], default:0.3},
+  // 位相感受関数Z(φ)の切り替え。0=従来のsin型 max(-sinφ,0)、1=floor型 floor(φ/π)(2π-φ)
+  // （活性域(π,2π)でZ'(φ)=-1一定。sin型のφ→2π付近で復元力が反転する不安定枝を排除する狙い）。
+  {key:"Z", label:"PRC_SELECT 0/1 (follower・位相感受関数Z(φ)切替: 0=sin型 max(-sinφ,0) / 1=floor型 floor(φ/π)(2π-φ)、既定0)",
+   step:1, roles:["follower"], default:0},
+  // ダンパ項のゲインK_D。実効ゲイン=K_P_RPM-K_D・dI/dt（0未満はクランプ）。
+  // dI/dtはsumVをφ∈(π,2π)の間だけ積分した値の1周期あたりの変化量（サンプルホールド）。
+  // 既定0=無効（従来通りK_P_RPMのみ）。
+  {key:"K", label:"K_D 0以上 (follower・ダンパゲイン: 実効ゲイン=K_P_RPM-K_D·dI/dt、既定0=無効)",
+   step:0.1, roles:["follower"], default:0},
+  // センサ正規化比にratio^xを適用し距離減衰を急峻にする（1.0=従来、raw∝1/d²のまま）。
+  // 大きいほど近距離はほぼ変わらず遠距離だけ急激に弱まる（実効的に1/d^(2x)相当）。
+  {key:"x", label:"V_DECAY_EXP 0.1-8 (follower・距離減衰の急峻化、既定1.0)",
+   step:0.1, roles:["follower"], default:1.0},
+  // IMU非搭載のため3輪エンコーダのデッドレコニングでヨー角を推定し、目標0°との誤差を
+  // P制御で3輪へ同じ量だけ上乗せして機体の向きを一定に保つ（既定0=無効）。
+  // 符号・大きさは実機で要調整。CHASSIS_R_M（ファームウェア側の定数）の実測が前提。
+  {key:"y", label:"YAW_HOLD_KP (ヨー保持Pゲイン。follower既定1.0 / leader既定2.0。0で無効化)",
+   step:0.05, defaultFollower:1.0, defaultLeader:2.0},
+  // M3目標RPMに乗算する直進較正係数（leader専用）。エンコーダは指令通りの回転数を示していても
+  // 実タイヤ有効半径の個体差（成形誤差・摩耗等）により直進時にわずかに弧を描いてずれる場合が
+  // あり、YAW_HOLD_KP（エンコーダ由来のヨー推定）では原理的に検出できないためFF側で静的補正する。
+  // 既定1.0、±10%まで（'w'コマンド側でconstrain済み）。
+  {key:"w", label:"STRAIGHT_TRIM (leader・M3直進較正係数、既定1.0、±10%まで)",
+   step:0.01, roles:["leader"], default:1.0},
+  // ['e'ビーコンモードは「選択した2機で相互キャリブレーション」から自動制御される内部
+  //  コマンドなので、ここ（手動パラメータ調整パネル）には出さない。手動操作は紛らわしく、
+  //  消し忘れると起動できなくなる事故につながるため。]
+];
+
+// ================================================================
+//  状態
+// ================================================================
+const robots = {};   // mac_id -> {label, ip, last_seen, data, dom:{...}}
+let ws = null;
+
+// 役割(leader/follower)ごとに「適用」ボタンで最後に送信した値を蓄積しておく。
+// サーバー保存済みの値は接続時に"role_defaults"メッセージで受け取り、ここへ反映する。
+// 「現在のリーダー・フォロワー設定を更新」ボタンはこのオブジェクトの中身をそのまま保存する。
+const roleParamValues = { leader: {}, follower: {} };
+let roleDefaultsSavedInfo = null;   // {leader_count, follower_count, saved_at} サーバーからの最新保存状態
+
+// ================================================================
+//  手動操縦（PC矢印キー、leader専用）
+//    ファームウェア(Winfree_LEADER_chain.ino)の"M <fwd_rpm> <side_rpm>"コマンドを叩く。
+//    ファーム側はMANUAL_TIMEOUT_MS(400ms)以内に次の'M'が来なければ自動停止する（＝手動操縦を
+//    解除して通常のWinfree駆動に戻ってしまう）ため、「矢印キーで操作」ボタンを押している間は
+//    キーの押下有無に関わらずMANUAL_SEND_INTERVAL_MSごとに送り続け、手動操縦モードを維持する。
+//    これにより、ボタンを押した直後（キー未入力）はfwd=side=0が送られ続けてモーターは停止状態を
+//    保ち、矢印キーを押した時だけ動く。
+// ================================================================
+let manualDriveTargetMac = null;         // 現在矢印キー操作の対象になっているロボットのmac_id
+const manualKeysDown = new Set();        // 押下中のArrow/QEキー
+let manualSendTimer = null;              // keepalive再送用setInterval（対象選択中は常時稼働）
+const MANUAL_SEND_INTERVAL_MS = 80;      // ファームのMANUAL_TIMEOUT_MS(400ms)より十分短く
+const MANUAL_ARROW_KEYS = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+const MANUAL_ROT_KEYS   = ["q", "e"];    // その場回転（左右矢印は並進専用のため別キーにした）
+const MANUAL_ALL_KEYS   = [...MANUAL_ARROW_KEYS, ...MANUAL_ROT_KEYS];
+
+// 手動操縦キーを奪ってよいのは「何もフォーカスされていない（＝ページ全体を見ている）」時だけにする。
+// 以前はinput/textarea/selectだけを除外していたが、パラメータ調整パネルを開く<summary>や
+// 「適用」<button>にクリックでフォーカスが残るケース（ブラウザ依存）まではカバーできておらず、
+// パラメータを触ろうとしただけで矢印キー/QE入力が手動操縦に奪われ、勝手に直進・回転してしまう
+// 事故があった。フォーカス可能な要素全般を弾く方針にして解消する。
+const MANUAL_FOCUS_BLOCK_SELECTOR =
+  'input, textarea, select, button, summary, a[href], [contenteditable="true"], [contenteditable=""], [tabindex]';
+function manualFocusIsBlocking(){
+  const ae = document.activeElement;
+  if (!ae || ae === document.body) return false;
+  return ae.matches(MANUAL_FOCUS_BLOCK_SELECTOR);
+}
+
+// ---- PS4コントローラー（Gamepad API、DS4標準マッピング）----
+const PAD_DEADZONE      = 0.12;
+const PAD_EMERGENCY_BTN = 1;      // ○ボタン
+let   padEmergencyPrev  = false;  // ○ボタンの立ち上がりエッジ検出用
+
+function padAxis(v){
+  if (Math.abs(v) < PAD_DEADZONE) return 0;
+  return Math.sign(v) * (Math.abs(v) - PAD_DEADZONE) / (1 - PAD_DEADZONE);
+}
+
+// 戻り値は -1〜1 に正規化した前後・横・回転と、非常停止ボタンの状態。
+// 符号は矢印キーと同じ規約にしてある。左入力でside正、左回転でrot正（Qキー相当）。
+function manualReadPad(){
+  const zero = {fwd:0, side:0, rot:0, emergency:false};
+  // フォーカスが外れたタブでは古い入力値が残る可能性があるため、安全側に倒して0を返す
+  if (!document.hasFocus()) return zero;
+  const gp = Array.from(navigator.getGamepads()).find(g => g && g.connected);
+  if (!gp || gp.axes.length < 4) return zero;
+  return {
+    fwd:  -padAxis(gp.axes[1]),   // 左スティック上=前進
+    side: -padAxis(gp.axes[0]),   // 左スティック左=side正
+    rot:  -padAxis(gp.axes[2]),   // 右スティック左=rot正
+    emergency: !!(gp.buttons[PAD_EMERGENCY_BTN] && gp.buttons[PAD_EMERGENCY_BTN].pressed)
+  };
+}
+
+function manualComputeAndSend(){
+  if (!manualDriveTargetMac) return;
+  const r = robots[manualDriveTargetMac];
+  if (!r || !r.dom) return;
+  const fwdRpm  = parseFloat(r.dom.manualFwdRpm.value)  || 0;
+  const sideRpm = parseFloat(r.dom.manualSideRpm.value) || 0;
+  const rotRpm  = parseFloat(r.dom.manualRotRpm.value)  || 0;
+
+  // PS4 ○ボタン: 立ち上がりで1回だけ手動操縦を終了し、全機にSTOPをbroadcastする
+  const pad = manualReadPad();
+  if (pad.emergency && !padEmergencyPrev){
+    padEmergencyPrev = true;
+    manualDeactivate();                 // 内部で "M 0 0 0" を送って解除
+    sendWS({type:"stop_all"});
+    return;
+  }
+  padEmergencyPrev = pad.emergency;
+
+  // 左右矢印キー = 真横への平行移動（機体の向きは変えない）。回転ではなく並進なので、
+  // ↑/↓と同時押しで斜め方向にも移動できる（オムニホイールならではの挙動）。
+  let fwd = 0, side = 0, rot = 0;
+  if (manualKeysDown.has("ArrowUp"))    fwd  += fwdRpm;
+  if (manualKeysDown.has("ArrowDown"))  fwd  -= fwdRpm;
+  if (manualKeysDown.has("ArrowLeft"))  side += sideRpm;   // 実機で左右が逆だったため符号を反転
+  if (manualKeysDown.has("ArrowRight")) side -= sideRpm;
+  if (manualKeysDown.has("q"))          rot  += rotRpm;    // その場回転（QE）。fwd/sideと併用可
+  if (manualKeysDown.has("e"))          rot  -= rotRpm;
+  // PS4スティック（アナログ）をキー入力に加算する
+  fwd  += pad.fwd  * fwdRpm;
+  side += pad.side * sideRpm;
+  rot  += pad.rot  * rotRpm;
+  // 斜め押下時（fwd・side同時入力）はベクトルが単軸押下時より大きくなってしまうため、
+  // 合成速度が単軸時のfwdRpm/sideRpmを超えないよう正規化する（回転はfwd/sideと別軸の
+  // コマンドとして加算するだけなので、この正規化の対象には含めない）。
+  if (fwd !== 0 && side !== 0 && fwdRpm !== 0 && sideRpm !== 0) {
+    const mag = Math.hypot(fwd / fwdRpm, side / sideRpm);   // fwd/sideのスケール差を考慮した正規化係数
+    if (mag > 1) {
+      fwd  /= mag;
+      side /= mag;
+    }
+  }
+  // 小数1桁に丸める。ファーム側の受信バッファ64Bを超えないようにするため
+  fwd  = Math.round(fwd  * 10) / 10;
+  side = Math.round(side * 10) / 10;
+  rot  = Math.round(rot  * 10) / 10;
+  sendWS({type:"set_param", robot: manualDriveTargetMac, cmd: `M ${fwd} ${side} ${rot}`});
+  if (r.dom.manualDriveStatus){
+    r.dom.manualDriveStatus.textContent = (fwd === 0 && side === 0 && rot === 0)
+      ? "停止中（矢印キー/QEで動きます）" : `fwd=${fwd} side=${side} rot=${rot}`;
+  }
+}
+
+// キー入力のみ全解除（keepaliveタイマー・対象選択は維持）。ウィンドウのフォーカスが外れた時用。
+function manualClearKeys(){
+  if (manualKeysDown.size === 0) return;
+  manualKeysDown.clear();
+  manualComputeAndSend();
+}
+
+// 矢印キー操作の対象に選択する。選択直後にM 0 0を即送信してモーターを強制停止させ、
+// キー入力が無い限り止まったままになるようkeepaliveを開始する。
+function manualActivate(mac){
+  if (manualDriveTargetMac === mac) return;
+  if (manualDriveTargetMac) manualDeactivate();   // 別の機体が対象なら先に解除
+  manualDriveTargetMac = mac;
+  manualKeysDown.clear();
+  manualComputeAndSend();   // 直ちに"M 0 0"を送り、running中のWinfree駆動等を強制停止する
+  if (!manualSendTimer) manualSendTimer = setInterval(manualComputeAndSend, MANUAL_SEND_INTERVAL_MS);
+  const r = robots[mac];
+  if (r && r.dom && r.dom.manualDriveBtn){
+    r.dom.manualDriveBtn.textContent = "⏹ 矢印キー操作を終了";
+    r.dom.manualDriveBtn.classList.add("primary");
+  }
+}
+
+// 矢印キー操作の対象そのものを解除する（役割変更・オフライン化・ボタン再クリック時）
+function manualDeactivate(){
+  if (!manualDriveTargetMac) return;
+  const prevMac = manualDriveTargetMac;
+  manualKeysDown.clear();
+  if (manualSendTimer){ clearInterval(manualSendTimer); manualSendTimer = null; }
+  sendWS({type:"set_param", robot: prevMac, cmd:"M 0 0 0"});   // 解除前に最後の明示停止
+  manualDriveTargetMac = null;
+  const prev = robots[prevMac];
+  if (prev && prev.dom && prev.dom.manualDriveBtn){
+    prev.dom.manualDriveBtn.textContent = "🎮 矢印キーで操作";
+    prev.dom.manualDriveBtn.classList.remove("primary");
+  }
+  if (prev && prev.dom && prev.dom.manualDriveStatus) prev.dom.manualDriveStatus.textContent = "";
+}
+
+window.addEventListener("keydown", (e) => {
+  if (!manualDriveTargetMac) return;
+  // QEは大文字小文字を区別しない（Shift+QEでもその場回転として扱う）
+  const key = (e.key === "Q" || e.key === "E") ? e.key.toLowerCase() : e.key;
+  if (!MANUAL_ALL_KEYS.includes(key)) return;
+  if (manualFocusIsBlocking()) return;   // 入力欄・ボタン・折りたたみパネル等では奪わない
+  e.preventDefault();
+  if (manualKeysDown.has(key)) return;   // OSのキーリピートで何度も来る分は無視
+  manualKeysDown.add(key);
+  manualComputeAndSend();
+});
+window.addEventListener("keyup", (e) => {
+  if (!manualDriveTargetMac) return;
+  const key = (e.key === "Q" || e.key === "E") ? e.key.toLowerCase() : e.key;
+  if (!MANUAL_ALL_KEYS.includes(key)) return;
+  manualKeysDown.delete(key);
+  manualComputeAndSend();
+});
+// ウィンドウ切替・タブ移動でkeyupが取りこぼされ、キーが押しっぱなし扱いのまま
+// 走り続ける事故を防ぐ（フォーカスが外れたらキー入力だけ解除。対象選択とkeepaliveは維持）。
+window.addEventListener("blur", () => { manualClearKeys(); });
+
+// ================================================================
+//  WebSocket接続
+// ================================================================
+function connectWS(){
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  ws = new WebSocket(`${proto}//${location.host}/ws`);
+  ws.onmessage = (ev) => {
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch { return; }
+    handleServerMessage(msg);
+  };
+  ws.onclose = () => { setTimeout(connectWS, 1500); };
+  ws.onerror = () => { ws.close(); };
+}
+
+function sendWS(obj){
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+}
+
+function handleServerMessage(msg){
+  if (msg.type === "telemetry"){
+    const mac = msg.robot;
+    const r = ensureRobot(mac, msg.label, msg.role);
+    r.label = msg.label || r.label;
+    r.role = msg.role || r.role;
+    r.ip = msg.ip;
+    r.last_seen = msg.recv_time;
+    r.data = msg.data;
+    r.recvTimes = r.recvTimes || [];
+    r.recvTimes.push(msg.recv_time);
+    if (r.recvTimes.length > 12) r.recvTimes.shift();
+
+    r.sumVHistory = r.sumVHistory || [];
+    r.sumVHistory.push({t: msg.recv_time, sumV: msg.data.sumV ?? 0});
+    const cutoff = msg.recv_time - SUMV_WINDOW_SEC - 2;   // 表示窓+少し余裕を持って古い点を捨てる
+    while (r.sumVHistory.length && r.sumVHistory[0].t < cutoff) r.sumVHistory.shift();
+  } else if (msg.type === "renamed"){
+    const r = robots[msg.robot];
+    if (r){ r.label = msg.label; if (r.dom) r.dom.label.textContent = msg.label; resortGrid(); }
+  } else if (msg.type === "role_changed"){
+    const r = robots[msg.robot];
+    if (r){
+      r.role = msg.role;
+      if (r.dom){
+        r.dom.rolebadge.textContent = msg.role === "leader" ? "LEADER" : "FOLLOWER";
+        r.dom.rolebadge.classList.toggle("leader", msg.role === "leader");
+        r.dom.rolebadge.classList.toggle("follower", msg.role !== "leader");
+        // .card.leaderの付け外し（リーダー速度クイック操作の表示/非表示はこれで切り替わる）
+        r.dom.root.classList.toggle("leader", msg.role === "leader");
+        // 'g'のラベル出し分けや、follower専用パラメータ/キャリブレーションボタンの
+        // 表示・非表示をロールの変化に追従させるため、パラメータ行を作り直す
+        buildParamGrid(msg.robot, r);
+        // 手動操縦（矢印キー）パネルの表示切り替え。leaderでなくなった場合、
+        // 操作対象に選ばれていたら解除して安全停止する。
+        if (r.dom.manualdrivepanel) r.dom.manualdrivepanel.style.display = (msg.role === "leader") ? "" : "none";
+        if (msg.role !== "leader" && manualDriveTargetMac === msg.robot) manualDeactivate();
+      }
+      resortGrid();
+    }
+  } else if (msg.type === "lidar_hz_changed"){
+    const r = robots[msg.robot];
+    if (r){
+      r.lidarHz = msg.lidar_hz;
+      r.lidarHzEffective = msg.effective_hz;
+      r.lidarHzAuto = msg.auto;
+      applyLidarHzToDom(r);
+    }
+  } else if (msg.type === "lidar_hz_collision"){
+    const lines = Object.entries(msg.collisions).map(([hz, labels]) => `${hz}Hz: ${labels.join(", ")}`);
+    showToast(`⚠ LiDAR周波数が重複しています\n${lines.join("\n")}`);
+  } else if (msg.type === "ota_progress"){
+    appendOtaLog(msg.robot, msg.line);
+  } else if (msg.type === "ota_done"){
+    appendOtaLog(msg.robot, `--- ${msg.success ? "成功" : "失敗"}: ${msg.message || ""} ---`);
+  } else if (msg.type === "logging_status"){
+    updateLoggingStatus(msg.active, msg.filename);
+  } else if (msg.type === "role_defaults"){
+    // 接続直後にサーバーから届く、保存済みの役割別デフォルト。
+    // セッション中に「適用」した値より古い可能性があるので、まだ何も送信していないキーだけ埋める
+    // （Object.assignの引数順で、サーバー値→今のセッション値の順に上書きし、セッション値を優先）。
+    roleParamValues.leader   = Object.assign({}, msg.leader   || {}, roleParamValues.leader);
+    roleParamValues.follower = Object.assign({}, msg.follower || {}, roleParamValues.follower);
+    // preloadKnownRobots()がrole_defaults到着より先にカードを作っていた場合、
+    // 各カードの入力欄には(PARAMS側の仮のdefault値、または空欄)が残ったままになる。
+    // ここでサーバー保存値を全カードの入力欄に書き戻し、軸固定(a)やtau_filt(L)のような
+    // 「保存はされているが表示が追いついていない」パラメータを正しい値に揃える。
+    refreshParamInputsFromRoleValues();
+    updateRoleDefaultsStatus();
+  } else if (msg.type === "role_defaults_saved"){
+    roleDefaultsSavedInfo = msg;
+    updateRoleDefaultsStatus();
+  } else if (msg.type === "role_defaults_applied"){
+    document.getElementById("roleDefaultsStatus").textContent =
+      `${msg.robot_count}台に即時反映しました（${new Date().toLocaleTimeString()}）`;
+  }
+}
+
+// ログ記録中/停止中の表示とボタンの有効/無効を更新する。
+// サーバーから状態変化のたびに送られてくる（ボタン押下時、新規WS接続時の両方）。
+function updateLoggingStatus(active, filename){
+  const statusEl = document.getElementById("loggingStatus");
+  const startBtn = document.getElementById("startLogBtn");
+  const stopBtn  = document.getElementById("stopLogBtn");
+  if (active){
+    const short = filename ? filename.split(/[\\/]/).pop() : "";
+    statusEl.textContent = `● 記録中: ${short}`;
+    statusEl.classList.add("recording");
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+  } else {
+    statusEl.textContent = "ログ: 停止中";
+    statusEl.classList.remove("recording");
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+  }
+}
+
+// role_defaultsの(再)受信時、既に作られている全カードの入力欄をroleParamValuesの内容へ
+// 揃える。buildParamGrid()はカード生成時点のroleParamValuesしか見ないため、
+// preloadKnownRobots()がrole_defaults到着より先にカードを作った場合、
+// 保存済みの値（軸固定=a、tau_filt=Lなど）が入力欄に反映されないまま取り残される問題への対処。
+// ユーザーがそのセッション中に既に手で編集した値を上書きしないよう、
+// roleParamValues自体は既存のマージ規則（サーバー値→セッション値優先）に従った後の状態を使う。
+function refreshParamInputsFromRoleValues(){
+  Object.entries(robots).forEach(([mac, r]) => {
+    if (!r.dom || !r.dom.paramInputs) return;
+    const roleKey = r.role === "leader" ? "leader" : "follower";
+    Object.entries(roleParamValues[roleKey]).forEach(([key, v]) => {
+      const input = r.dom.paramInputs[key];
+      if (!input) return;
+      const p = PARAMS.find(pp => pp.key === key);
+      let vDisp = v;
+      if (p && p.hz) vDisp = v / (2 * Math.PI);
+      input.value = Number(vDisp.toFixed(4));
+    });
+  });
+}
+
+// 「パラメータ設定の永続化」パネルのステータス表示を、現在保持しているroleParamValuesの
+// 件数とサーバーの最終保存時刻から更新する。
+function updateRoleDefaultsStatus(){
+  const el = document.getElementById("roleDefaultsStatus");
+  if (!el) return;
+  const lc = Object.keys(roleParamValues.leader).length;
+  const fc = Object.keys(roleParamValues.follower).length;
+  const savedText = roleDefaultsSavedInfo
+    ? `（最終保存: ${new Date(roleDefaultsSavedInfo.saved_at * 1000).toLocaleTimeString()}）`
+    : "";
+  el.textContent = `現在保持中: leader ${lc}件 / follower ${fc}件 ${savedText}`;
+}
+
+// ================================================================
+//  現在の設定値をテキストでコピー（実験記録・チャット貼り付け用）
+//    roleParamValuesは「適用」ボタンで送信された値をrole単位で保持しているので、
+//    それをそのままテンプレート形式のテキストに整形してクリップボードへコピーする。
+//    omega('o')は内部でrad/s保存されているため、表示はHzに戻す。
+// ================================================================
+function formatRoleParamsForCopy(role){
+  const vals = roleParamValues[role];
+  const keys = Object.keys(vals);
+  if (keys.length === 0) return "(未設定)";
+  return keys.map(k => {
+    const p = PARAMS.find(pp => pp.key === k);
+    let v = vals[k];
+    if (p && p.hz) v = v / (2 * Math.PI);   // rad/s → Hz表示に戻す
+    return `${k}${Number(v.toFixed(4))}`;
+  }).join(" ");
+}
+
+document.getElementById("copyParamsBtn").addEventListener("click", async () => {
+  const text = `leader: ${formatRoleParamsForCopy("leader")}\n`
+             + `follower(共通): ${formatRoleParamsForCopy("follower")}\n`
+             + `follower(個体差): （必要ならここに手動で追記）`;
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast("設定値をコピーしました:\n" + text);
+  } catch (e) {
+    // クリップボードAPIが使えない環境向けのフォールバック
+    prompt("コピーできませんでした。以下を手動で選択してコピーしてください:", text);
+  }
+});
+
+function appendOtaLog(mac, line){
+  const r = robots[mac];
+  if (!r || !r.dom) return;
+  const log = r.dom.otalog;
+  log.textContent += line + "\n";
+  log.scrollTop = log.scrollHeight;
+}
+
+// 画面右下に一時的な警告/通知を表示する（LiDAR周波数の重複警告などに使用）。
+// 8秒後に自動で消える。
+const toastArea = document.getElementById("toastArea");
+function showToast(text){
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.style.whiteSpace = "pre-line";
+  el.textContent = text;
+  toastArea.appendChild(el);
+  setTimeout(() => el.remove(), 8000);
+}
+
+// r.lidarHz(手動指定値|null)・r.lidarHzEffective(実際に使われる値)・r.lidarHzAuto(自動算出か)
+// の現在値を、そのロボットカードのLiDAR周波数欄に反映する。preloadKnownRobots()での
+// 初期読み込み時・set_lidar_hz/renameによるlidar_hz_changed受信時・カード新規作成時の
+// いずれからも呼ばれる共通経路。
+function applyLidarHzToDom(r){
+  if (!r.dom) return;
+  const eff = r.lidarHzEffective;
+  const auto = r.lidarHzAuto;
+  if (eff === null || eff === undefined){
+    r.dom.lidarhzsub.textContent = "現在の割当: -- （ラベルに番号が無いため既定値=MACハッシュを使用中）";
+  } else if (auto){
+    r.dom.lidarhzsub.textContent = `現在の割当: ${eff} Hz（自動: ラベル「${r.label}」の番号から算出）`;
+  } else {
+    r.dom.lidarhzsub.textContent = `現在の割当: ${eff} Hz（手動指定）`;
+  }
+  // 入力欄には手動指定値のみを表示する（自動算出値は表示しない＝空欄のままにして
+  // 「自動割当中」であることが分かるようにする）
+  r.dom.lidarhzinput.value = (r.lidarHz === null || r.lidarHz === undefined) ? "" : r.lidarHz;
+}
+
+// ================================================================
+//  カード生成
+// ================================================================
+const grid = document.getElementById("grid");
+const emptyMsg = document.getElementById("emptyMsg");
+const cardTemplate = document.getElementById("cardTemplate");
+
+// ロボットごとに固定の色（凡例・sumVチャートなどで使用。生成順に割り当てて以後変わらない）
+const PALETTE = ["#6FA8FF","#FF6B81","#7FE0A8","#FFB86B","#C79CFF","#2BC7B4","#F2C94C","#FF8FC0"];
+let colorIndex = 0;
+
+// 既知/受信済みのロボットに対して、状態エントリとカードDOMが無ければ作る。
+// テレメトリ受信時と、robots_config.json由来の事前登録時の両方から呼ばれる共通経路。
+function ensureRobot(mac, label, role){
+  let r = robots[mac];
+  if (!r){
+    r = robots[mac] = {
+      label: label || mac, role: role || "follower", ip: null, last_seen: null, data: null,
+      dom: null, recvTimes: [], sumVHistory: [],
+      color: PALETTE[colorIndex++ % PALETTE.length],
+    };
+    createCard(mac, r);
+    resortGrid();
+  }
+  return r;
+}
+
+// カードの並び順: リーダーを先頭、以降はラベル中の数字（Robot01→1など）昇順。
+// 毎フレーム呼ぶとDOM移動でパラメータ入力中の操作が乱れるため、構成が変わった時だけ呼ぶこと。
+function resortGrid(){
+  const entries = Object.entries(robots).filter(([mac, r]) => r.dom);
+  entries.sort((a, b) => {
+    const ra = a[1], rb = b[1];
+    const roleA = ra.role === "leader" ? 0 : 1;
+    const roleB = rb.role === "leader" ? 0 : 1;
+    if (roleA !== roleB) return roleA - roleB;
+    const numA = parseInt((ra.label || "").match(/(\d+)/)?.[1] ?? "999", 10);
+    const numB = parseInt((rb.label || "").match(/(\d+)/)?.[1] ?? "999", 10);
+    if (numA !== numB) return numA - numB;
+    return (ra.label || "").localeCompare(rb.label || "");
+  });
+  entries.forEach(([mac, r]) => grid.appendChild(r.dom.root));
+}
+
+// robots_config.jsonに登録済みのロボットを、電源投入前でも先にカード表示しておく。
+// テレメトリが来ていないので last_seen=null のまま → render()側で「未接続」表示になる。
+async function preloadKnownRobots(){
+  try {
+    const res = await fetch("/api/robots");
+    if (!res.ok){
+      console.error(`/api/robots が ${res.status} を返しました。bridge_server.pyが起動しているか確認してください。`);
+      emptyMsg.textContent = `サーバーとの通信に失敗しました (HTTP ${res.status})。bridge_server.pyのログを確認してください。`;
+      return;
+    }
+    const list = await res.json();
+    const count = Object.keys(list).length;
+    console.log(`[preload] robots_config.json登録済みロボット: ${count}件`, list);
+    if (count === 0){
+      emptyMsg.textContent = "robots_config.jsonにロボットが登録されていません。電源を入れて最初のテレメトリが届くと自動登録されるか、robots_config.jsonのrobotsに手動で追加してください。";
+    }
+    Object.entries(list).forEach(([mac, info]) => {
+      const r = ensureRobot(mac, info.label, info.role);
+      if (info.ip) r.ip = info.ip;
+      if (info.last_seen) r.last_seen = info.last_seen;
+      r.lidarHz = info.lidar_hz ?? null;
+      r.lidarHzEffective = info.lidar_hz_effective ?? null;
+      r.lidarHzAuto = info.lidar_hz_auto ?? true;
+      applyLidarHzToDom(r);
+    });
+  } catch (e){
+    console.error("robots_config.jsonの事前読み込みに失敗:", e);
+    emptyMsg.textContent = "サーバーに接続できませんでした（fetch失敗）。bridge_server.pyが起動しているか、URLが正しいか確認してください。";
+  }
+}
+
+// ================================================================
+//  パラメータ行 + キャリブレーションボタンの生成（role対応）
+//    ロールによって意味が異なるパラメータ('g')はラベルを出し分け、
+//    該当ロールで使われないパラメータ（roles指定あり）は表示しない。
+//    再キャリブレーションはfollowerのIRセンサ専用の概念なので、
+//    leaderカードには表示しない。
+//    role変更時（rolebadgeクリック）にも呼び直して表示を更新する。
+// ================================================================
+function buildParamGrid(mac, r){
+  const dom = r.dom;
+  dom.paramgrid.innerHTML = "";
+  dom.paramInputs = {};   // key -> input要素。apply_role_defaults実行時に表示を書き戻すために使う
+
+  // 「全パラメータをこの機体に適用」: 下の各行の入力欄に今入っている値をまとめて
+  // このロボット1台にだけ送信する（各行の個別「適用」ボタンを1つずつ押す手間を省く）。
+  // 空欄の行はスキップする（未入力＝変更しない、という扱い）。
+  const applyAllRow = document.createElement("div");
+  applyAllRow.className = "paramrow";
+  const applyAllBtn = document.createElement("button");
+  applyAllBtn.className = "btn small primary";
+  applyAllBtn.textContent = "⚡ 全パラメータをこの機体に適用";
+  applyAllBtn.style.flex = "1";
+  applyAllBtn.title = "下の入力欄のうち値が入っている行を、上から順にまとめてこのロボット1台へ送信します。";
+  applyAllBtn.addEventListener("click", async () => {
+    const applicable = PARAMS.filter(p => !p.roles || p.roles.includes(r.role));
+    const toSend = [];
+    applicable.forEach(p => {
+      const input = dom.paramInputs[p.key];
+      if (!input) return;
+      let vRaw = parseFloat(input.value);
+      if (Number.isNaN(vRaw)){
+        // 入力欄が空欄でも、ファームウェア既定値が定義されているパラメータ
+        // （軸固定=a, tau_filt=Lなど）はその既定値にフォールバックし、必ず送信対象へ含める。
+        // buildParamGrid()/refreshParamInputsFromRoleValues()側の表示はタイミング依存
+        // （role_defaults到着より前にカードが作られた場合など）なので、送信直前にも
+        // ここで最終的に担保する。
+        const fallback = (r.role === "leader")
+          ? (p.defaultLeader !== undefined ? p.defaultLeader : p.default)
+          : (p.defaultFollower !== undefined ? p.defaultFollower : p.default);
+        if (fallback === undefined) return;   // 既定値も無ければ本当の未入力としてスキップ
+        vRaw = fallback;
+        input.value = Number(vRaw.toFixed(4));   // 表示欄にも書き戻しておく
+      }
+      const v = p.hz ? vRaw * 2 * Math.PI : vRaw;
+      toSend.push({p, v});
+    });
+    if (toSend.length === 0){
+      alert("送信する値が入力されていません（各行に値を入力してから実行してください）");
+      return;
+    }
+    if (!confirm(`${r.label} に ${toSend.length}件のパラメータをまとめて送信します。よろしいですか？`)) return;
+    // UDPはACK無しの一方向通信のため、同じロボットへ間隔ゼロで大量に送りつけると
+    // ESP32側で一部のコマンド（軸固定=a, tau_filtなど送信順が後ろのもの）が取りこぼされる
+    // ことがある。1件ずつ短い間隔を空けて順番に送る。
+    applyAllBtn.disabled = true;
+    for (const {p, v} of toSend){
+      sendWS({type:"set_param", robot: mac, cmd: `${p.key} ${v}`});
+      roleParamValues[r.role === "leader" ? "leader" : "follower"][p.key] = v;
+      await sleepMs(40);
+    }
+    applyAllBtn.disabled = false;
+    updateRoleDefaultsStatus();
+    applyAllBtn.textContent = `✓ ${toSend.length}件送信済み（${new Date().toLocaleTimeString()}）`;
+    setTimeout(() => { applyAllBtn.textContent = "⚡ 全パラメータをこの機体に適用"; }, 3000);
+  });
+  applyAllRow.appendChild(applyAllBtn);
+  dom.paramgrid.appendChild(applyAllRow);
+
+  PARAMS.forEach(p => {
+    if (p.roles && !p.roles.includes(r.role)) return;
+    const row = document.createElement("div");
+    row.className = "paramrow";
+    const lab = document.createElement("label");
+    lab.textContent = (p.key === "g")
+      ? (r.role === "leader" ? p.labelLeader : p.labelFollower)
+      : p.label;
+    const input = document.createElement("input");
+    input.type = "number";
+    input.step = p.step;
+    input.placeholder = "値";
+    // 既にroleParamValuesに値があれば初期表示する（omegaはHz表示に戻す）。
+    // 一度も送信・保存されたことがないパラメータ（axis lockなど）は、roleParamValuesに
+    // キー自体が存在せず入力欄が空欄のままになり、「全パラメータをこの機体に適用」ボタンが
+    // 空欄行をスキップする仕様（意図的な「未入力＝変更しない」動作）のせいで、個別の「適用」
+    // ボタンを一度手動で押さない限り一括適用に含まれないという問題があった。
+    // これを防ぐため、roleParamValuesに値がなければPARAMS側に定義したファームウェアの
+    // 既定値（default / role別のdefaultLeader・defaultFollower）を初期表示のフォールバックに使う。
+    const roleKey = r.role === "leader" ? "leader" : "follower";
+    if (roleParamValues[roleKey][p.key] !== undefined){
+      let v0 = roleParamValues[roleKey][p.key];
+      if (p.hz) v0 = v0 / (2 * Math.PI);
+      input.value = Number(v0.toFixed(4));
+    } else {
+      const fallback = (r.role === "leader")
+        ? (p.defaultLeader !== undefined ? p.defaultLeader : p.default)
+        : (p.defaultFollower !== undefined ? p.defaultFollower : p.default);
+      if (fallback !== undefined) input.value = Number(fallback.toFixed(4));
+    }
+    // 「保存済み設定を今すぐ全機に反映」実行時に、この入力欄へ後から書き戻せるよう保持
+    dom.paramInputs[p.key] = input;
+    const btn = document.createElement("button");
+    btn.className = "btn small";
+    btn.textContent = "適用";
+    btn.addEventListener("click", () => {
+      const vRaw = parseFloat(input.value);
+      if (Number.isNaN(vRaw)) return;
+      // omega(o)は入力値を2π倍してrad/sとして送信する
+      const v = p.hz ? vRaw * 2 * Math.PI : vRaw;
+      sendWS({type:"set_param", robot: mac, cmd: `${p.key} ${v}`});
+      roleParamValues[r.role === "leader" ? "leader" : "follower"][p.key] = v;
+      updateRoleDefaultsStatus();
+    });
+    row.append(lab, input, btn);
+    if (p.hz){
+      // 入力値(Hz相当)をリアルタイムで2π倍し、実際に送信されるrad/s値を参考表示
+      const hzReadout = document.createElement("span");
+      hzReadout.className = "hzreadout";
+      input.addEventListener("input", () => {
+        const v = parseFloat(input.value);
+        hzReadout.textContent = Number.isNaN(v) ? "" : `= ${(v * 2 * Math.PI).toFixed(3)} rad/s`;
+      });
+      row.appendChild(hzReadout);
+    }
+    dom.paramgrid.appendChild(row);
+  });
+
+  // 再キャリブレーションボタン（followerのみ。単体ベンチテスト用の「1体キャリブレーション」のみ）
+  //   静止したまま自機IR ON 5秒→IR OFF 5秒で自己反射の平均値を測定（"c 0"）。
+  //   周囲に他ロボットがいない場合向け。
+  //   2体でのキャリブレーション（相方ロボットの発光を基準にする方式）は、相方のビーコン
+  //   ON/OFFタイミングとの協調が必要なため、下の「選択した2機で相互キャリブレーション」
+  //   パネルから実行する（このカード単体のボタンには置かない）。
+  //   leaderはIRセンサ較正の概念が無いため表示しない。
+  if (r.role !== "leader"){
+    const row = document.createElement("div");
+    row.className = "paramrow";
+
+    const btn1 = document.createElement("button");
+    btn1.className = "btn small";
+    btn1.textContent = "1体キャリブレーション";
+    btn1.title = "静止したまま自機IR ON 5秒→IR OFF 5秒で自己反射を測定します（従来通り、単体ベンチテスト向け）。";
+    btn1.style.flex = "1";
+    btn1.addEventListener("click", () => sendWS({type:"set_param", robot: mac, cmd:"c 0"}));
+
+    row.append(btn1);
+    dom.paramgrid.appendChild(row);
+  }
+}
+
+function createCard(mac, r){
+  emptyMsg.style.display = "none";
+  const node = cardTemplate.content.firstElementChild.cloneNode(true);
+  grid.appendChild(node);
+
+  const dom = {
+    root: node,
+    dot: node.querySelector(".dot"),
+    label: node.querySelector(".label"),
+    rolebadge: node.querySelector(".rolebadge"),
+    macid: node.querySelector(".macid"),
+    ip: node.querySelector(".ip"),
+    lastseen: node.querySelector(".lastseen"),
+    rate: node.querySelector(".rate"),
+    phaseinfo: node.querySelector(".phaseinfo"),
+    cbfbadge: node.querySelector(".cbfbadge"),
+    sumvval: node.querySelector(".sumvval"),
+    sumvcanvas: node.querySelector(".sumvcanvas"),
+    rawsumv: node.querySelector(".rawsumv"),
+    sensorcanvas: node.querySelector(".sensorcanvas"),
+    rawpanel: node.querySelector(".rawpanel"),
+    rawcanvas: node.querySelector(".rawcanvas"),
+    calbasesub: node.querySelector(".calbasesub"),
+    distval: node.querySelector(".distval"),
+    distbar: node.querySelector(".distbar"),
+    dsafemark: node.querySelector(".dsafemark"),
+    obstaclesub: node.querySelector(".obstaclesub"),
+    chainval: node.querySelector(".chainval"),
+    chainsub: node.querySelector(".chainsub"),
+    checkbox: node.querySelector(".batchcheck"),
+    lidarhzsub: node.querySelector(".lidarhzsub"),
+    lidarhzinput: node.querySelector(".lidarhzinput"),
+    lidarhzApplyBtn: node.querySelector(".lidarhzApplyBtn"),
+    otafileinput: node.querySelector(".otafileinput"),
+    otafilename: node.querySelector(".otafile"),
+    otaBtn: node.querySelector(".otaBtn"),
+    otalog: node.querySelector(".otalog"),
+    paramgrid: node.querySelector(".paramgrid"),
+    mtestWheel: node.querySelector(".mtestWheel"),
+    mtestRpm: node.querySelector(".mtestRpm"),
+    mtestDur: node.querySelector(".mtestDur"),
+    mtestRunBtn: node.querySelector(".mtestRunBtn"),
+    mtestStopBtn: node.querySelector(".mtestStopBtn"),
+    mtestStatus: node.querySelector(".mtestStatus"),
+    manualdrivepanel: node.querySelector(".manualdrivepanel"),
+    manualFwdRpm: node.querySelector(".manualFwdRpm"),
+    manualSideRpm: node.querySelector(".manualSideRpm"),
+    manualRotRpm: node.querySelector(".manualRotRpm"),
+    manualDriveBtn: node.querySelector(".manualDriveBtn"),
+    manualDriveStatus: node.querySelector(".manualDriveStatus"),
+  };
+  r.dom = dom;   // buildParamGrid()等、以降の初期化処理がr.dom経由でアクセスできるよう先に代入
+  dom.macid.textContent = mac;
+  dom.label.textContent = r.label;
+  dom.rolebadge.textContent = r.role === "leader" ? "LEADER" : "FOLLOWER";
+  dom.rolebadge.classList.toggle("leader", r.role === "leader");
+  dom.rolebadge.classList.toggle("follower", r.role !== "leader");
+  // 手動操縦（矢印キー）パネルはleaderのみ表示（ファームウェアの'M'コマンドがleader専用のため）
+  if (dom.manualdrivepanel) dom.manualdrivepanel.style.display = (r.role === "leader") ? "" : "none";
+
+  dom.label.addEventListener("click", () => {
+    const next = prompt("表示名を変更（例: Robot03）", r.label);
+    if (next && next.trim()){
+      sendWS({type:"rename", robot: mac, label: next.trim()});
+    }
+  });
+  dom.label.addEventListener("keydown", (e) => { if (e.key === "Enter") dom.label.click(); });
+
+  dom.rolebadge.addEventListener("click", () => {
+    const nextRole = r.role === "leader" ? "follower" : "leader";
+    sendWS({type:"set_role", robot: mac, role: nextRole});
+  });
+  dom.rolebadge.addEventListener("keydown", (e) => { if (e.key === "Enter") dom.rolebadge.click(); });
+
+  // LiDARスキャン周波数: 通常はラベル番号(n)から自動割当されるが、手動で明示上書きもできる。
+  // 空欄で適用すると自動割当(ラベル番号ベース)に戻る。
+  dom.lidarhzApplyBtn.addEventListener("click", () => {
+    const raw = dom.lidarhzinput.value;
+    const hz = raw.trim() === "" ? null : parseFloat(raw);
+    if (hz !== null && Number.isNaN(hz)) return;
+    sendWS({type:"set_lidar_hz", robot: mac, hz: hz});
+  });
+
+  buildParamGrid(mac, r);
+
+  // モーター単体テスト: ファーム既存のmanual_override機構("1"/"2"/"3"コマンドで該当輪の
+  // 目標rpmを直接指定、Winfree/CBFはその間pid_targetを上書きしない)を使う。指定時間経過後に
+  // "0"(全停止・manual_override解除)を自動送信する。既存のset_param経路をそのまま使うので
+  // ファームウェア・bridge_server.py側の変更は不要。
+  let mtestTimer = null;
+  dom.mtestRunBtn.addEventListener("click", () => {
+    const wheelCmd = dom.mtestWheel.value;   // "1"/"2"/"3" = M1/M2/M3
+    const wheelLabelMap = {"1":"wheel0 (M1)", "2":"wheel1 (M2)", "3":"wheel2 (M3)"};
+    const rpm = parseFloat(dom.mtestRpm.value);
+    const dur = parseInt(dom.mtestDur.value, 10);
+    if (Number.isNaN(rpm) || rpm < -240 || rpm > 240){
+      alert("目標rpmは-240〜240の範囲で入力してください");
+      return;
+    }
+    if (Number.isNaN(dur) || dur < 200 || dur > 8000){
+      alert("実行時間は200〜8000msの範囲で入力してください");
+      return;
+    }
+    if (!confirm(`${r.label} の${wheelLabelMap[wheelCmd]}だけを目標${rpm}rpmで${dur}ms回します。\n` +
+                 `Winfree/CBFによる制御を一時的に上書きします。よろしいですか？`)) return;
+    if (mtestTimer) clearTimeout(mtestTimer);
+    sendWS({type:"set_param", robot: mac, cmd: `${wheelCmd} ${rpm}`});
+    dom.mtestStatus.textContent = `実行中... (${new Date().toLocaleTimeString()})`;
+    mtestTimer = setTimeout(() => {
+      sendWS({type:"set_param", robot: mac, cmd: "0 0"});
+      dom.mtestStatus.textContent = `完了（${dur}ms経過、自動停止・手動モード解除済み）`;
+      mtestTimer = null;
+    }, dur);
+  });
+  dom.mtestStopBtn.addEventListener("click", () => {
+    if (mtestTimer) { clearTimeout(mtestTimer); mtestTimer = null; }
+    sendWS({type:"set_param", robot: mac, cmd: "0 0"});
+    dom.mtestStatus.textContent = `手動停止（${new Date().toLocaleTimeString()}）`;
+  });
+
+  // 手動操縦（PC矢印キー、leader専用）: このカードを矢印キー操作の対象にトグルする。
+  // 既に別のロボットが対象になっていた場合は先にそちらを解除してから切り替える
+  // （同時に2台へ矢印キーが効くと誤操作の元になるため、対象は常に1台まで）。
+  // ONにした瞬間はmanualActivate()内で"M 0 0"が即送信され、矢印キーを押すまでは
+  // 停止状態が保たれる（keepaliveで維持されるため、running中のWinfree駆動には戻らない）。
+  if (dom.manualDriveBtn){
+    dom.manualDriveBtn.addEventListener("click", () => {
+      if (manualDriveTargetMac === mac){
+        manualDeactivate();
+      } else {
+        manualActivate(mac);
+      }
+    });
+  }
+
+  // OTA
+  dom.otafileinput.addEventListener("change", async () => {
+    const f = dom.otafileinput.files[0];
+    if (!f) return;
+    dom.otafilename.textContent = `アップロード中: ${f.name}`;
+    const fd = new FormData();
+    fd.append("file", f);
+    const res = await fetch("/upload", {method:"POST", body: fd});
+    const j = await res.json();
+    dom.otafilename.textContent = `準備完了: ${j.name}`;
+    dom.otafilename.dataset.path = j.path;
+  });
+  dom.otaBtn.addEventListener("click", () => {
+    const path = dom.otafilename.dataset.path;
+    if (!path){ alert(".binファイルを選択してください"); return; }
+    dom.otalog.textContent = "";
+    sendWS({type:"ota", robot: mac, file: path});
+  });
+
+  r.dom = dom;
+  applyLidarHzToDom(r);
+}
+// ================================================================
+//  一括OTA / 一斉起動・一斉停止
+// ================================================================
+document.getElementById("startAllBtn").addEventListener("click", () => {
+  sendWS({type:"start_all"});
+});
+
+document.getElementById("stopAllBtn").addEventListener("click", () => {
+  sendWS({type:"stop_all"});
+});
+
+document.getElementById("startLogBtn").addEventListener("click", () => {
+  sendWS({type:"start_logging"});
+});
+
+document.getElementById("stopLogBtn").addEventListener("click", () => {
+  if (!confirm("ログ記録を停止しますか？（現在のCSVファイルはそのまま保存されます）")) return;
+  sendWS({type:"stop_logging"});
+});
+
+let batchUploadedPath = null;
+document.getElementById("batchOtaBtn").addEventListener("click", () => {
+  const selected = Object.entries(robots).filter(([mac, r]) => r.dom.checkbox.checked).map(([mac]) => mac);
+  if (selected.length === 0){ alert("カード左上のチェックボックスでロボットを選択してください"); return; }
+  document.getElementById("batchFile").click();
+  document.getElementById("batchFile").onchange = async () => {
+    const f = document.getElementById("batchFile").files[0];
+    if (!f) return;
+    const fd = new FormData();
+    fd.append("file", f);
+    const res = await fetch("/upload", {method:"POST", body: fd});
+    const j = await res.json();
+    selected.forEach(mac => { const r = robots[mac]; if (r && r.dom) r.dom.otalog.textContent = ""; });
+    sendWS({type:"ota_batch", robots: selected, file: j.path});
+  };
+});
+
+// ================================================================
+//  選択機体の起動・停止（カード左上のチェックボックスで選択したロボットにだけ
+//  RUN/STOPを送る）
+//    上部の「一斉起動/一斉停止」はUDPブロードキャストで全機に送るのに対し、
+//    こちらはselectedRobotsSorted()で選んだロボットのIPへ個別にユニキャストする。
+//    ファームウェア側のhandleCmdPort()は送信元が単一宛先(unicast)かbroadcastかを
+//    区別せず、受信した文字列が"RUN"/"START"/"STOP"かどうかだけで判定するため、
+//    bridge_server.py側の変更は不要（既存のset_param中継をそのまま使える）。
+//    RUN/STOPはブロッキングしない即時コマンドなので、キャリブレーションのような
+//    1台ずつの順次実行・待ち時間は不要 — 選択した全台へまとめて送信する。
+// ================================================================
+const batchRunStatus = document.getElementById("batchRunStatus");
+
+document.getElementById("batchRunBtn").addEventListener("click", () => {
+  const selected = selectedRobotsSorted();
+  if (selected.length === 0){ alert("カード左上のチェックボックスでロボットを選択してください"); return; }
+  selected.forEach(([mac]) => {
+    sendWS({type:"set_param", robot: mac, cmd:"RUN"});
+    sendWS({type:"set_param", robot: mac, cmd:"START"});   // 旧ファームウェア互換のエイリアス
+  });
+  batchRunStatus.textContent = `RUN送信: ${selected.length}台（${new Date().toLocaleTimeString()}）`;
+});
+
+document.getElementById("batchStopBtn").addEventListener("click", () => {
+  const selected = selectedRobotsSorted();
+  if (selected.length === 0){ alert("カード左上のチェックボックスでロボットを選択してください"); return; }
+  selected.forEach(([mac]) => sendWS({type:"set_param", robot: mac, cmd:"STOP"}));
+  batchRunStatus.textContent = `STOP送信: ${selected.length}台（${new Date().toLocaleTimeString()}）`;
+});
+
+// ================================================================
+//  1体キャリブレーション（カード左上のチェックボックスで選択したロボットに対し、
+//  1台ずつ自動的に "c 0"（静止）を送る。複数選択時は衝突防止のため順番に実行）
+//    ファームウェア側はブロッキングでキャリブレーションを行うため、次の1台へ進む前に
+//    十分な待ち時間（実行時間+マージン）を空けている。完了通知はテレメトリに含まれない
+//    ため、この待ち時間はファームウェア側 CAL_SETTLE_MS/CAL_AVG_MS から逆算した目安値。
+//    ファームウェア側の値を変更したらここも合わせて調整すること。
+// ================================================================
+function sleepMs(ms){ return new Promise(resolve => setTimeout(resolve, ms)); }
+
+const CAL_SINGLE_TOTAL_MS = 12000;  // 1体: (500+5000)ms x2フェーズ + マージン
+
+const batchCalStatus    = document.getElementById("batchCalStatus");
+const batchCalSingleBtn = document.getElementById("batchCalSingleBtn");
+
+function selectedRobotsSorted(){
+  return Object.entries(robots)
+    .filter(([mac, r]) => r.dom.checkbox.checked)
+    .sort((a, b) => {
+      const numA = parseInt((a[1].label || "").match(/(\d+)/)?.[1] ?? "999", 10);
+      const numB = parseInt((b[1].label || "").match(/(\d+)/)?.[1] ?? "999", 10);
+      return numA - numB;
+    });
+}
+
+batchCalSingleBtn.addEventListener("click", async () => {
+  const selected = selectedRobotsSorted();
+  if (selected.length === 0){
+    alert("カード左上のチェックボックスでロボットを選択してください");
+    return;
+  }
+  const labels = selected.map(([mac, r]) => r.label).join(", ");
+  const perRobotSec = Math.round(CAL_SINGLE_TOTAL_MS / 1000);
+  if (!confirm(`${selected.length}台（${labels}）に対して「1体キャリブレーション（静止）」を\n`
+             + `ラベル番号順に1台ずつ自動実行します（1台あたり約${perRobotSec}秒）。よろしいですか？`)){
+    return;
+  }
+
+  batchCalSingleBtn.disabled = true;
+  try {
+    for (let i = 0; i < selected.length; i++){
+      const [mac, r] = selected[i];
+      batchCalStatus.textContent = `[${i + 1}/${selected.length}] ${r.label} 実行中...`;
+      sendWS({type:"set_param", robot: mac, cmd:"c 0"});
+      await sleepMs(CAL_SINGLE_TOTAL_MS);
+    }
+    batchCalStatus.textContent = `完了: ${selected.length}台（${new Date().toLocaleTimeString()}）`;
+  } finally {
+    batchCalSingleBtn.disabled = false;
+  }
+});
+
+// ================================================================
+//  2機で相互キャリブレーション（チェックボックスでちょうど2機を選択して実行）
+//    片方(target)を自機IR OFFのまま回転させ、その間もう片方(partner)をビーコンモード
+//    ('e 1')でIR常時点灯（WS2812Bは赤）。target側の回転が終わったらpartnerのビーコンを
+//    解除('e 0'、WS2812Bは青）し、targetはそのまま静止してベースラインを測定する。
+//    それが終わったら役割を交代し、同じ手順をもう一往復行う。
+//
+//    タイミングはファームウェア側の固定値に同期させている（follower側 定数）:
+//      CAL_ROTATE_TOTAL_MS  = CAL_ROTATE_SETTLE_MS(300) + CAL_ROTATE_MS(4700) + マージン
+//                            = 5000ms + 500ms
+//      CAL_BASELINE_TOTAL_MS = CAL_SETTLE_MS(500) + CAL_AVG_MS(5000) + マージン
+//                            = 5500ms + 500ms
+//    ファームウェア側でこれらの定数を変更した場合は、ここも合わせて調整すること。
+//    "c 1"はブロッキングでtarget側の回転+ベースライン測定を両方まとめて行うので、
+//    ダッシュボード側はpartnerのビーコンON/OFFのタイミングだけをこの合計時間に
+//    合わせて外から制御すればよい（target側に追加のコマンドを送る必要はない）。
+// ================================================================
+const CAL_ROTATE_TOTAL_MS   = 5500;    // target: 回転フェーズの想定所要時間+マージン
+const CAL_BASELINE_TOTAL_MS = 6000;    // target: ベースライン測定フェーズの想定所要時間+マージン
+
+const mutualCalStatus = document.getElementById("mutualCalStatus");
+const mutualCalBtn    = document.getElementById("mutualCalBtn");
+
+async function runMutualCalibrationRound(targetMac, targetLabel, partnerMac, partnerLabel, roundLabel){
+  mutualCalStatus.textContent = `${roundLabel}: ${targetLabel}が回転／${partnerLabel}が発光（赤）...`;
+  sendWS({type:"set_param", robot: partnerMac, cmd:"e 1"});   // partner: ビーコンON（赤）
+  sendWS({type:"set_param", robot: targetMac,  cmd:"c 1"});   // target: 回転+ベースライン測定を開始（ブロッキング）
+  await sleepMs(CAL_ROTATE_TOTAL_MS);
+
+  mutualCalStatus.textContent = `${roundLabel}: ${targetLabel}が静止してベースライン測定／${partnerLabel}は消灯（青）...`;
+  sendWS({type:"set_param", robot: partnerMac, cmd:"e 0"});   // partner: ビーコンOFF（青）
+  await sleepMs(CAL_BASELINE_TOTAL_MS);
+}
+
+mutualCalBtn.addEventListener("click", async () => {
+  const selected = selectedRobotsSorted();
+  if (selected.length !== 2){
+    alert("カード左上のチェックボックスで、ちょうど2機を選択してください（現在: "
+        + `${selected.length}機選択中）`);
+    return;
+  }
+  const [[macA, rA], [macB, rB]] = selected;
+  const totalSec = Math.round(2 * (CAL_ROTATE_TOTAL_MS + CAL_BASELINE_TOTAL_MS) / 1000);
+  if (!confirm(`${rA.label} と ${rB.label} で相互キャリブレーションを実行します。\n`
+             + `・${rA.label} が回転 / ${rB.label} が発光 → 交代\n`
+             + `・${rB.label} が回転 / ${rA.label} が発光\n`
+             + `合計約${totalSec}秒かかります。周囲に障害物が無いか確認してください。よろしいですか？`)){
+    return;
+  }
+
+  mutualCalBtn.disabled = true;
+  batchCalSingleBtn.disabled = true;
+  try {
+    await runMutualCalibrationRound(macA, rA.label, macB, rB.label, `1/2 (${rA.label}を較正)`);
+    await runMutualCalibrationRound(macB, rB.label, macA, rA.label, `2/2 (${rB.label}を較正)`);
+    mutualCalStatus.textContent = `完了: ${rA.label} ⇔ ${rB.label}（${new Date().toLocaleTimeString()}）`;
+  } finally {
+    mutualCalBtn.disabled = false;
+    batchCalSingleBtn.disabled = false;
+  }
+});
+
+// ================================================================
+//  フォロワー一括パラメータ変更
+//    既存のset_param（ロボットのIPへユニキャストでコマンド文字列送信）をそのまま流用。
+//    サーバー側の変更は不要 — 対象を「role===followerの既知ロボット全部」にループするだけ。
+// ================================================================
+const batchParamKeySel = document.getElementById("batchParamKey");
+PARAMS.forEach((p, i) => {
+  const opt = document.createElement("option");
+  opt.value = i;
+  opt.textContent = p.labelFollower || p.label;   // このパネルはfollower専用
+  batchParamKeySel.appendChild(opt);
+});
+
+const batchParamHzEl = document.getElementById("batchParamHz");
+function updateBatchParamHz(){
+  const p = PARAMS[parseInt(batchParamKeySel.value, 10)];
+  const v = parseFloat(document.getElementById("batchParamValue").value);
+  batchParamHzEl.textContent = (p.hz && !Number.isNaN(v)) ? `= ${(v * 2 * Math.PI).toFixed(3)} rad/s` : "";
+}
+batchParamKeySel.addEventListener("change", updateBatchParamHz);
+document.getElementById("batchParamValue").addEventListener("input", updateBatchParamHz);
+
+document.getElementById("batchParamApplyBtn").addEventListener("click", () => {
+  const p = PARAMS[parseInt(batchParamKeySel.value, 10)];
+  const valInput = document.getElementById("batchParamValue");
+  const vRaw = parseFloat(valInput.value);
+  const statusEl = document.getElementById("batchParamStatus");
+
+  if (p.key !== "c" && Number.isNaN(vRaw)){
+    statusEl.textContent = "値を入力してください";
+    statusEl.style.color = "var(--danger)";
+    return;
+  }
+  // omega(o)は入力値を2π倍してrad/sとして送信する
+  const v = (p.hz && !Number.isNaN(vRaw)) ? vRaw * 2 * Math.PI : vRaw;
+
+  const targets = Object.entries(robots).filter(([mac, r]) => r.role === "follower" && r.ip);
+  if (targets.length === 0){
+    statusEl.textContent = "IPが分かっているフォロワーがいません（一度電源を入れて通信させてください）";
+    statusEl.style.color = "var(--danger)";
+    return;
+  }
+
+  const labels = targets.map(([mac, r]) => r.label).join(", ");
+  const valueText = Number.isNaN(v) ? "" : ` = ${v}`;
+  if (!confirm(`${targets.length}台のフォロワー（${labels}）に\n"${p.label}${valueText}" を送信します。よろしいですか？`)){
+    return;
+  }
+
+  targets.forEach(([mac]) => {
+    sendWS({type:"set_param", robot: mac, cmd: `${p.key} ${Number.isNaN(v) ? 0 : v}`});
+  });
+  roleParamValues.follower[p.key] = Number.isNaN(v) ? 0 : v;
+  updateRoleDefaultsStatus();
+  statusEl.textContent = `${targets.length}台に送信しました（${new Date().toLocaleTimeString()}）`;
+  statusEl.style.color = "var(--ok)";
+});
+
+// ================================================================
+//  パラメータ設定の永続化
+//    「現在のリーダー・フォロワー設定を更新」: これまで「適用」ボタンで送信してきた値
+//    （roleParamValues、カード個別/リーダー速度クイック操作/フォロワー一括のいずれも対象）を
+//    そのままサーバーに保存する。以後、いずれかのロボットの電源が入れ直され再起動が検知されると、
+//    bridge_server.py側がその機体のroleに応じた保存値を自動的に再送する。
+//    「保存済み設定を今すぐ全機に反映」: 再起動を待たず、今オンラインの全機に即座に配る。
+// ================================================================
+document.getElementById("updateRoleDefaultsBtn").addEventListener("click", () => {
+  const lc = Object.keys(roleParamValues.leader).length;
+  const fc = Object.keys(roleParamValues.follower).length;
+  if (lc === 0 && fc === 0){
+    alert("まだ「適用」ボタンで送信したパラメータがありません。先にいずれかのパラメータを適用してから実行してください。");
+    return;
+  }
+  if (!confirm(`現在保持している設定（leader ${lc}件 / follower ${fc}件）をサーバーに保存します。\n`
+             + `以後、ロボットの電源を入れ直した際に自動で再送されるようになります。よろしいですか？`)){
+    return;
+  }
+  sendWS({type:"save_role_defaults", leader: roleParamValues.leader, follower: roleParamValues.follower});
+});
+
+document.getElementById("applyRoleDefaultsBtn").addEventListener("click", () => {
+  if (!confirm("保存済みの役割別デフォルトパラメータを、現在オンラインの全機へ今すぐ送信します。よろしいですか？")) return;
+  sendWS({type:"apply_role_defaults"});
+
+  // ロボットへ送るのと同時に、ブラウザ側で把握している値（roleParamValues）を
+  // 各カードの入力欄にも反映する。ロボットからの確認応答は無いため、
+  // 「送った値=今ロボットに設定されているはずの値」としてそのまま表示する。
+  Object.entries(robots).forEach(([mac, r]) => {
+    if (!r.dom || !r.dom.paramInputs) return;
+    const roleKey = r.role === "leader" ? "leader" : "follower";
+    Object.entries(roleParamValues[roleKey]).forEach(([key, v]) => {
+      const input = r.dom.paramInputs[key];
+      if (!input) return;
+      const p = PARAMS.find(pp => pp.key === key);
+      let vDisp = v;
+      if (p && p.hz) vDisp = v / (2 * Math.PI);
+      input.value = Number(vDisp.toFixed(4));
+    });
+  });
+});
+
+// ================================================================
+//  描画ループ（WSメッセージ頻度から分離。ここがPython版の"カクつき"対策の要）
+// ================================================================
+
+// HiDPI(Retina等)対応: backing storeの解像度をdevicePixelRatio倍にし、描画時の座標は
+// CSSピクセルのまま使えるようtransformする。これをやらないとRetina等で文字がぼやける
+// （V0-V11のラベルがぼやけていたのはこれが原因: backing storeがCSS表示サイズと1:1で、
+//   物理ピクセルに引き伸ばされていた）。
+function setupHiDPICanvas(canvas, cssWidth, cssHeight){
+  const dpr = window.devicePixelRatio || 1;
+  const targetW = Math.round(cssWidth * dpr);
+  const targetH = Math.round(cssHeight * dpr);
+  if (canvas.width !== targetW || canvas.height !== targetH){
+    canvas.width = targetW;
+    canvas.height = targetH;
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return ctx;
+}
+
+function fmtAgo(sec){
+  if (sec < 1) return "たった今";
+  if (sec < 60) return `${sec.toFixed(0)}秒前`;
+  return `${(sec/60).toFixed(1)}分前`;
+}
+
+function render(){
+  const now = Date.now() / 1000;
+  let online = 0;
+  const macs = Object.keys(robots);
+
+  macs.forEach(mac => {
+    const r = robots[mac];
+    if (!r.dom) return;
+    const age = now - (r.last_seen || 0);
+    const isOnline = age < STALE_SEC;
+    if (isOnline) online++;
+
+    r.dom.root.classList.toggle("offline", !isOnline);
+    r.dom.root.classList.toggle("leader", r.role === "leader");
+    // オフラインになった機体が矢印キー操作の対象のままだと、復帰時に古いkeepaliveが
+    // 途切れているのに矢印キーだけ効いているように見えて紛らわしいため解除する。
+    if (!isOnline && manualDriveTargetMac === mac) manualDeactivate();
+    r.dom.dot.classList.toggle("on", isOnline);
+    r.dom.dot.classList.toggle("off", !isOnline);
+    r.dom.lastseen.textContent = r.last_seen ? fmtAgo(age) : "未接続（電源待ち）";
+
+    const d = r.data || {};
+    r.dom.ip.textContent = r.ip || "";
+    r.dom.phaseinfo.textContent = r.data
+      ? `φ=${(d.phi ?? 0).toFixed(3)} active=${d.active ? "ON" : "off"} yaw=${(d.yaw_est_deg ?? 0).toFixed(1)}°`
+      : `φ=--- active=-`;
+
+    // 通信レート（直近の受信間隔から概算。WiFi混雑/パケット落ちの目安。omegaとは無関係）
+    const rt = r.recvTimes || [];
+    if (rt.length >= 2){
+      const span = rt[rt.length - 1] - rt[0];
+      const hz = span > 0 ? (rt.length - 1) / span : 0;
+      r.dom.rate.textContent = `通信 ${hz.toFixed(1)} Hz`;
+      r.dom.rate.style.color = hz < 5 ? "var(--warn)" : "var(--text-dim)";
+    }
+
+    // CBFバッジ
+    r.dom.cbfbadge.textContent = d.cbf_active ? "CBF介入中" : "CBF";
+    r.dom.cbfbadge.classList.toggle("on", !!d.cbf_active);
+
+    // sumV（raw_sumVはクランプ前の値。sumVと大きく乖離していたら飽和のサイン）
+    const sumv = d.sumV ?? 0;
+    const rawsumv = d.raw_sumV ?? sumv;
+    r.dom.sumvval.textContent = sumv.toFixed(3);
+    r.dom.rawsumv.textContent = `raw=${rawsumv.toFixed(3)}${rawsumv > sumv + 0.05 ? " (飽和あり)" : ""}`;
+    drawSumVChart(r.dom.sumvcanvas, r, now);
+
+    // 12chセンサ電圧チャート
+    drawSensorChannels(r.dom.sensorcanvas, d);
+
+    // 生電圧(raw_V)・cal_V・base_V（followerのみ。leaderはこの概念自体を持たない）
+    if (r.dom.rawpanel){
+      const hasRaw = r.role !== "leader" && d.rawV0 !== undefined && d.rawV0 !== null;
+      r.dom.rawpanel.style.display = (r.role === "leader") ? "none" : "";
+      if (hasRaw){
+        drawRawChannels(r.dom.rawcanvas, d);
+        const calStr  = Array.from({length:12}, (_, j) => (d[`calV${j}`]  ?? 0).toFixed(3)).join(" ");
+        const baseStr = Array.from({length:12}, (_, j) => (d[`baseV${j}`] ?? 0).toFixed(3)).join(" ");
+        r.dom.calbasesub.textContent = `cal_V : ${calStr}\nbase_V: ${baseStr}`;
+      } else if (r.role !== "leader"){
+        r.dom.calbasesub.textContent = "raw_V/cal_V/base_V未受信（ファームウェア更新が必要な可能性）";
+      }
+    }
+
+    // 障害物距離（99.9 = 未検出のプレースホルダ、firmwareのnearest_dist_mと同じ意味）
+    const dist = d.nearest_dist_m ?? 99.9;
+    const hasDist = dist < 90;
+    r.dom.distval.textContent = hasDist ? `${dist.toFixed(2)} m` : "未検出";
+    const distPct = hasDist ? Math.max(0, Math.min(100, (1 - dist / DIST_MAX) * 100)) : 0;
+    r.dom.distbar.style.width = `${distPct}%`;
+    r.dom.distbar.style.background = (d.cbf_active ? "var(--danger)" : "var(--amber)");
+    r.dom.root.classList.toggle("danger", hasDist && dist < D_SAFE_DEFAULT);
+    r.dom.dsafemark.style.left = `${Math.max(0, Math.min(100, (1 - D_SAFE_DEFAULT / DIST_MAX) * 100))}%`;
+    r.dom.obstaclesub.textContent = hasDist
+      ? `方位=${(d.nearest_bearing_deg ?? 0).toFixed(0)}°  トラック数=${(d.n_tracks_alive ?? 0).toFixed(0)}  ゲート棄却=${(d.gate_reject_cnt ?? 0).toFixed(0)}`
+      : `トラック数=${(d.n_tracks_alive ?? 0).toFixed(0)}  ゲート棄却=${(d.gate_reject_cnt ?? 0).toFixed(0)}`;
+
+    // チェーン距離（前方/後方ゾーン、直列実験用）
+    const fwd = d.chain_fwd_dist_m ?? 99.9;
+    const back = d.chain_back_dist_m ?? 99.9;
+    const hasFwd = fwd < 90, hasBack = back < 90;
+    r.dom.chainval.textContent =
+      (hasFwd ? `前方 ${fwd.toFixed(3)}m` : "前方 未検出") + " / " +
+      (hasBack ? `後方 ${back.toFixed(3)}m` : "後方 未検出");
+
+    // LiDARの生confidence平均とCONF_MIN閾値の比較（反射テープの効果検証・不安定域の診断用）。
+    // conf_min_currentはロボットが今実際に使っている値（fコマンドで変更可）を都度受け取るので、
+    // ダッシュボード側で閾値を決め打ちする必要がない。
+    const confMin  = d.conf_min_current ?? 120;
+    const fwdConf  = d.chain_fwd_conf_avg  ?? -1;
+    const backConf = d.chain_back_conf_avg ?? -1;
+    const fmtConf  = (c) => (c < 0 ? "N/A" : c.toFixed(0));
+    const confColor = (c) => (c >= 0 && c < confMin) ? "var(--danger)" : "inherit";
+    r.dom.chainsub.innerHTML =
+      `conf平均: 前方=<span style="color:${confColor(fwdConf)}">${fmtConf(fwdConf)}</span> ` +
+      `後方=<span style="color:${confColor(backConf)}">${fmtConf(backConf)}</span> ` +
+      `（閾値=${confMin.toFixed(0)}）`;
+  });
+
+  document.getElementById("onlineCount").textContent = online;
+  document.getElementById("totalCount").textContent = macs.length;
+}
+
+
+// sumV(t) 時系列チャート（ロボットごと。横軸=時間、縦軸=sumV）
+const SUMV_WINDOW_SEC = 12;   // 表示窓[秒]
+function drawSumVChart(canvas, r, now){
+  if (!canvas) return;
+  const cssWidth = canvas.clientWidth || 264, cssHeight = 140;
+  const ctx = setupHiDPICanvas(canvas, cssWidth, cssHeight);
+  const w = cssWidth, h = cssHeight;
+  ctx.clearRect(0, 0, w, h);
+
+  const padL = 34, padR = 8, padT = 6, padB = 16;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+  const yForV = (v) => padT + (1 - Math.max(0, Math.min(SUMV_MAX, v)) / SUMV_MAX) * plotH;
+  const xForT = (t) => padL + (1 - (now - t) / SUMV_WINDOW_SEC) * plotW;
+
+  // y軸目盛り（0〜SUMV_MAXを5分割）
+  ctx.font = "9px ui-monospace, monospace";
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  const TICKS = 5;
+  for (let i = 0; i <= TICKS; i++){
+    const v = SUMV_MAX * i / TICKS;
+    const y = yForV(v);
+    ctx.fillStyle = CHART.textDim;
+    ctx.fillText(v.toFixed(2), padL - 6, y);
+    ctx.strokeStyle = i === 0 ? CHART.gridMain : CHART.gridFaint;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
+  }
+  ctx.strokeStyle = CHART.gridMain;
+  ctx.strokeRect(padL, padT, plotW, plotH);
+
+  const hist = (r.sumVHistory || []).filter(p => now - p.t <= SUMV_WINDOW_SEC);
+  if (hist.length >= 2){
+    ctx.beginPath();
+    let started = false;
+    hist.forEach(p => {
+      const x = xForT(p.t), y = yForV(p.sumV);
+      if (!started){ ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+    });
+    ctx.strokeStyle = CHART.cyan;
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = CHART.textDim;
+  ctx.font = "9px ui-monospace, monospace";
+  ctx.textBaseline = "top";
+  ctx.textAlign = "left";
+  ctx.fillText(`-${SUMV_WINDOW_SEC}s`, padL, padT + plotH + 3);
+  ctx.textAlign = "right";
+  ctx.fillText("now", padL + plotW, padT + plotH + 3);
+}
+
+// 12chセンサ電圧のミニバーチャート（ヒートマップではなく単純な棒グラフ。
+// V_ON検出閾値を破線で表示し、閾値超え(検出中)のchを強調する）
+const CHANNEL_MAX = 0.35;   // ファームウェアのクランプ上限 ONE_THIRD(=1/3≈0.333)に余裕を持たせた目安上限
+function drawSensorChannels(canvas, d){
+  if (!canvas) return;
+  const cssWidth = canvas.clientWidth || 264, cssHeight = 140;
+  const ctx = setupHiDPICanvas(canvas, cssWidth, cssHeight);
+  const w = cssWidth, h = cssHeight;
+  ctx.clearRect(0, 0, w, h);
+
+  const padL = 34, padR = 8, padT = 6, padB = 16;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+  const n = 12;
+  const gap = 3;
+  const barW = (plotW - gap * (n + 1)) / n;
+  const vOn = d.V_ON ?? 0.33;   // テレメトリにV_ONは含まれないため既定値表示（robots_config等での上書きは今後の拡張余地）
+
+  // y軸目盛り（0, 0.05, 0.10, 0.35 — V_ONと同じ0.35にも目盛りを合わせている）
+  ctx.font = "9px ui-monospace, monospace";
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  [0, 0.05, 0.10, 0.35].forEach(v => {
+    const y = padT + (1 - v / CHANNEL_MAX) * plotH;
+    ctx.fillStyle = CHART.textDim;
+    ctx.fillText(v.toFixed(2), padL - 6, y);
+    ctx.strokeStyle = v === 0 ? CHART.gridMain : CHART.gridFaint;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
+  });
+  ctx.strokeStyle = CHART.gridMain;
+  ctx.strokeRect(padL, padT, plotW, plotH);
+
+  // V_ON基準線（強調、破線）
+  const thY = padT + (1 - vOn / CHANNEL_MAX) * plotH;
+  ctx.setLineDash([3, 2]);
+  ctx.strokeStyle = "rgba(242,169,60,0.75)";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(padL, thY); ctx.lineTo(padL + plotW, thY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.textBaseline = "top";
+  for (let j = 0; j < n; j++){
+    const v = Math.max(0, d[`V${j}`] ?? 0);
+    const barH = Math.max(1, Math.min(plotH, (v / CHANNEL_MAX) * plotH));
+    const x = padL + gap + j * (barW + gap);
+    const y = padT + plotH - barH;
+    ctx.fillStyle = v >= vOn ? CHART.amber : CHART.dim;
+    ctx.fillRect(x, y, barW, barH);
+    ctx.fillStyle = CHART.textDim;
+    ctx.font = "8px ui-monospace, monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(String(j), x + barW/2, padT + plotH + 3);
+  }
+}
+
+// 生電圧(raw_V)チャート。各chについて、cal_V較正時に記録した「自己反射/相方IRの
+// 想定レンジ」= [base_V, base_V+cal_V] を薄いグレーの帯として背景に描き、
+// 現在のraw_V(実測値)をバーとして重ねる。raw_Vが帯の上端(=base_V+cal_V)を超えている
+// chは較正時より強い信号を受けていることになるため赤で強調する
+// （8方向配置テストのような、chごとの非対称性・較正ズレの診断に使う）。
+function drawRawChannels(canvas, d){
+  if (!canvas) return;
+  const cssWidth = canvas.clientWidth || 264, cssHeight = 140;
+  const ctx = setupHiDPICanvas(canvas, cssWidth, cssHeight);
+  const w = cssWidth, h = cssHeight;
+  ctx.clearRect(0, 0, w, h);
+
+  const padL = 34, padR = 8, padT = 6, padB = 16;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+  const n = 12;
+  const gap = 3;
+  const barW = (plotW - gap * (n + 1)) / n;
+
+  const raw  = Array.from({length:n}, (_, j) => Math.max(0, d[`rawV${j}`]  ?? 0));
+  const cal  = Array.from({length:n}, (_, j) => Math.max(0, d[`calV${j}`]  ?? 0));
+  const base = Array.from({length:n}, (_, j) => Math.max(0, d[`baseV${j}`] ?? 0));
+  // 自動スケール: 帯の上端(base+cal)とraw値の最大に少し余裕を持たせる。最低0.05は確保。
+  let vmax = 0.05;
+  for (let j = 0; j < n; j++) vmax = Math.max(vmax, base[j] + cal[j], raw[j]);
+  vmax *= 1.15;
+
+  ctx.font = "9px ui-monospace, monospace";
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  const TICKS = 4;
+  for (let i = 0; i <= TICKS; i++){
+    const v = vmax * i / TICKS;
+    const y = padT + (1 - v / vmax) * plotH;
+    ctx.fillStyle = CHART.textDim;
+    ctx.fillText(v.toFixed(2), padL - 6, y);
+    ctx.strokeStyle = i === 0 ? CHART.gridMain : CHART.gridFaint;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
+  }
+  ctx.strokeStyle = CHART.gridMain;
+  ctx.strokeRect(padL, padT, plotW, plotH);
+
+  ctx.textBaseline = "top";
+  for (let j = 0; j < n; j++){
+    const x = padL + gap + j * (barW + gap);
+    const yFor = (v) => padT + (1 - Math.min(v, vmax) / vmax) * plotH;
+
+    // 較正レンジ [base_V, base_V+cal_V] を薄い帯で表示
+    const yBaseTop = yFor(base[j] + cal[j]);
+    const yBaseBot = yFor(base[j]);
+    ctx.fillStyle = CHART.trackFill;
+    ctx.fillRect(x, yBaseTop, barW, Math.max(1, yBaseBot - yBaseTop));
+
+    // 現在のraw_Vバー（較正レンジ上端を超えていたら赤で強調）
+    const overCal = raw[j] > base[j] + cal[j];
+    const barH = Math.max(1, plotH - (yFor(raw[j]) - padT));
+    ctx.fillStyle = overCal ? CHART.danger : CHART.cyan;
+    ctx.fillRect(x, yFor(raw[j]), barW, barH);
+
+    ctx.fillStyle = CHART.textDim;
+    ctx.font = "8px ui-monospace, monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(String(j), x + barW/2, padT + plotH + 3);
+  }
+}
+
+let lastRender = 0;
+function loop(ts){
+  if (ts - lastRender > 1000/RENDER_FPS){
+    render();
+    lastRender = ts;
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+updateRoleDefaultsStatus();
+preloadKnownRobots();
+connectWS();
+// ================================================================
+//  Gap Viewer: CSVログを読み込んでロボット間距離をグラフ化する
+//  （チャットで毎回やっていたクロックオフセット較正+OR結合ロジックの移植）
+// ================================================================
+(function(){
+  let gapRows = [];
+  let gapMacList = [];
+  let gapOrder = [];   // array of mac strings, position 0 = leader側(先頭)
+
+  // 既知のfleet構成（01=leader, 02〜08=follower）。分かっている機体は自動でこの順に並べ、
+  // 未知のmacはラベル無しのまま末尾に回す。robots_config.jsonの内容と合わせて使う。
+  const GAP_KNOWN_FLEET = {
+    'D0099C': { num: '01', role: 'leader'   },
+    '0E544C': { num: '02', role: 'follower' },
+    '2EC9C8': { num: '03', role: 'follower' },
+    '0E5368': { num: '04', role: 'follower' },
+    '2DDA88': { num: '05', role: 'follower' },
+    '2EB3B4': { num: '06', role: 'follower' },
+    '2EB8DC': { num: '07', role: 'follower' },
+    '0EE6B0': { num: '08', role: 'follower' },
+  };
+  function gapMacLabel(mac){
+    const k = GAP_KNOWN_FLEET[mac];
+    return k ? `${k.num}(${mac})` : mac;
+  }
+
+  const gapDropzone = document.getElementById('gapDropzone');
+  const gapFileInput = document.getElementById('gapFileInput');
+  const gapFilenameEl = document.getElementById('gapFilename');
+  const gapErrorBox = document.getElementById('gapErrorBox');
+  const gapConfigRow = document.getElementById('gapConfigRow');
+  const gapOrderRow = document.getElementById('gapOrderRow');
+  const gapToggleRow = document.getElementById('gapToggleRow');
+  const gapResultBlock = document.getElementById('gapResultBlock');
+  const gapSteadyToggle = document.getElementById('gapSteadyToggle');
+  const gapStartInput = document.getElementById('gapStartInput');
+  const gapEndInput = document.getElementById('gapEndInput');
+  const gapFileStat = document.getElementById('gapFileStat');
+  const gapPairTable = document.getElementById('gapPairTable');
+  const gapLegend = document.getElementById('gapLegend');
+
+  if (!gapDropzone) return; // gap viewer markup not present, skip silently
+
+  const GAP_COLORS = ['#2BC7B4','#F2A93C','#7FA8FF','#FF7A5C','#B98CFF','#4FE0A0','#E572B0'];
+
+  ['dragenter','dragover'].forEach(ev=>{
+    gapDropzone.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); gapDropzone.classList.add('drag'); });
+  });
+  ['dragleave','drop'].forEach(ev=>{
+    gapDropzone.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); gapDropzone.classList.remove('drag'); });
+  });
+  gapDropzone.addEventListener('drop', e=>{
+    const f = e.dataTransfer.files[0];
+    if (f) gapHandleFile(f);
+  });
+  gapFileInput.addEventListener('change', e=>{
+    const f = e.target.files[0];
+    if (f) gapHandleFile(f);
+  });
+
+  function gapHandleFile(file){
+    gapFilenameEl.textContent = file.name;
+    gapErrorBox.innerHTML = '';
+    const reader = new FileReader();
+    reader.onload = e => {
+      try { gapParseCSV(e.target.result); }
+      catch(err){ gapShowError('CSVの読み込みに失敗しました: ' + err.message); }
+    };
+    reader.onerror = () => gapShowError('ファイルの読み込みに失敗しました。');
+    reader.readAsText(file);
+  }
+
+  function gapShowError(msg){
+    gapErrorBox.innerHTML = `<div class="gap-err">${msg}</div>`;
+    gapConfigRow.style.display = 'none';
+    gapToggleRow.style.display = 'none';
+    gapResultBlock.style.display = 'none';
+  }
+
+  // --- minimal CSV parser (handles quoted fields) ---
+  function gapParseCSVText(text){
+    const lines = text.replace(/\r\n/g,'\n').split('\n').filter(l=>l.length>0);
+    if (lines.length < 2) throw new Error('データ行がありません');
+    const header = gapSplitCSVLine(lines[0]);
+    const out = [];
+    for (let i=1;i<lines.length;i++){
+      const cells = gapSplitCSVLine(lines[i]);
+      if (cells.length !== header.length) continue;
+      const obj = {};
+      for (let j=0;j<header.length;j++) obj[header[j]] = cells[j];
+      out.push(obj);
+    }
+    return out;
+  }
+  function gapSplitCSVLine(line){
+    const out = []; let cur=''; let inQuotes=false;
+    for (let i=0;i<line.length;i++){
+      const c = line[i];
+      if (inQuotes){
+        if (c === '"'){
+          if (line[i+1] === '"'){ cur+='"'; i++; } else { inQuotes=false; }
+        } else cur += c;
+      } else {
+        if (c === '"') inQuotes = true;
+        else if (c === ',') { out.push(cur); cur=''; }
+        else cur += c;
+      }
+    }
+    out.push(cur);
+    return out;
+  }
+
+  function gapParseCSV(text){
+    const parsed = gapParseCSVText(text);
+    const required = ['mac','t_robot','utc_time','chain_fwd_dist_m','chain_back_dist_m'];
+    const missing = required.filter(c => !(c in parsed[0]));
+    if (missing.length) { gapShowError('必要な列がありません: ' + missing.join(', ')); return; }
+
+    gapRows = parsed.map(r => ({
+      mac: r.mac,
+      t_robot: parseFloat(r.t_robot),
+      utc_time: r.utc_time,
+      chain_fwd_dist_m: parseFloat(r.chain_fwd_dist_m),
+      chain_back_dist_m: parseFloat(r.chain_back_dist_m),
+    })).filter(r => r.mac && !isNaN(r.t_robot));
+
+    gapMacList = [...new Set(gapRows.map(r=>r.mac))];
+    if (gapMacList.length < 2){
+      gapShowError('このログにはロボットが1台分のデータしかありません（mac: ' + gapMacList.join(', ') + '）。2台以上のログが必要です。');
+      return;
+    }
+
+    // 既知のfleet構成が分かるmacは01→08の番号順、未知のmacはファイル出現順で末尾に回す
+    gapOrder = gapMacList.slice().sort((m1, m2) => {
+      const k1 = GAP_KNOWN_FLEET[m1], k2 = GAP_KNOWN_FLEET[m2];
+      if (k1 && k2) return k1.num.localeCompare(k2.num);
+      if (k1) return -1;
+      if (k2) return 1;
+      return gapMacList.indexOf(m1) - gapMacList.indexOf(m2);
+    });
+    gapBuildOrderUI();
+
+    gapConfigRow.style.display = 'block';
+    gapToggleRow.style.display = 'flex';
+    gapFileStat.textContent = `${gapMacList.length} robots, ${gapRows.length} rows`;
+    gapComputeAndRender();
+  }
+
+  function gapBuildOrderUI(){
+    gapOrderRow.innerHTML = '';
+    gapOrder.forEach((mac, idx) => {
+      if (idx > 0){
+        const arrow = document.createElement('div');
+        arrow.className = 'gap-order-arrow';
+        arrow.textContent = '→';
+        gapOrderRow.appendChild(arrow);
+      }
+      const item = document.createElement('div');
+      item.className = 'gap-order-item';
+      const idxLbl = document.createElement('div');
+      idxLbl.className = 'gap-order-idx';
+      idxLbl.textContent = idx === 0 ? '先頭(leader側)' : (idx === gapOrder.length-1 ? '末尾' : `${idx+1}番目`);
+      const sel = document.createElement('select');
+      sel.dataset.pos = idx;
+      gapMacList.forEach(m=>{
+        const n = gapRows.filter(r=>r.mac===m).length;
+        const opt = document.createElement('option');
+        opt.value = m; opt.textContent = `${gapMacLabel(m)} (${n}行)`;
+        if (m === mac) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.addEventListener('change', ()=>{
+        gapOrder[idx] = sel.value;
+        gapComputeAndRender();
+      });
+      item.appendChild(idxLbl);
+      item.appendChild(sel);
+      gapOrderRow.appendChild(item);
+    });
+  }
+
+  gapSteadyToggle.addEventListener('change', gapComputeAndRender);
+  gapStartInput.addEventListener('change', gapComputeAndRender);
+  gapEndInput.addEventListener('change', gapComputeAndRender);
+
+  // --- utc_timeベースでクロックオフセットを較正し、fromMacのt_robotをtoMacの座標系に合わせて返す ---
+  function gapEstimateOffset(fromRows, toRows){
+    const toByUtc = new Map();
+    toRows.forEach(r => { if(!toByUtc.has(r.utc_time)) toByUtc.set(r.utc_time, []); toByUtc.get(r.utc_time).push(r); });
+    const offsets = [];
+    fromRows.forEach(r => {
+      const matches = toByUtc.get(r.utc_time);
+      if (matches) matches.forEach(m => offsets.push(m.t_robot - r.t_robot)); // to - from
+    });
+    if (offsets.length === 0) return null;
+    offsets.sort((x,y)=>x-y);
+    return offsets[Math.floor(offsets.length/2)];
+  }
+
+  // --- 2ロボット分のOR結合ギャップ時系列を計算する（ahead=前を走る側/back視野、behind=後ろを追う側/fwd視野） ---
+  function gapComputePair(aheadRows, behindRows, offset, t0){
+    const aheadPts = aheadRows.map(r => ({ t: (r.t_robot - offset) - t0, back: r.chain_back_dist_m, backValid: r.chain_back_dist_m < 90 }))
+                               .sort((x,y)=>x.t-y.t);
+    const behindPts = behindRows.map(r => ({ t: r.t_robot - t0, fwd: r.chain_fwd_dist_m, fwdValid: r.chain_fwd_dist_m < 90 }))
+                                 .sort((x,y)=>x.t-y.t);
+    const TOL = 0.3;
+    let ai = 0;
+    const merged = [];
+    for (const pt of behindPts){
+      while (ai < aheadPts.length - 1 && Math.abs(aheadPts[ai+1].t - pt.t) <= Math.abs(aheadPts[ai].t - pt.t)) ai++;
+      let back = null, backValid = false;
+      if (aheadPts.length){
+        let bestIdx = ai, bestDist = Math.abs(aheadPts[ai].t - pt.t);
+        for (let k=Math.max(0,ai-2); k<=Math.min(aheadPts.length-1,ai+2); k++){
+          const d = Math.abs(aheadPts[k].t - pt.t);
+          if (d < bestDist){ bestDist = d; bestIdx = k; }
+        }
+        if (bestDist <= TOL){ back = aheadPts[bestIdx].back; backValid = aheadPts[bestIdx].backValid; }
+      }
+      let dist = null;
+      if (pt.fwdValid) dist = pt.fwd;
+      else if (backValid) dist = back;
+      merged.push({ t: pt.t, dist });
+    }
+    return merged;
+  }
+
+  function gapComputeAndRender(){
+    if (new Set(gapOrder).size !== gapOrder.length){
+      gapShowError('同じロボットを複数の位置に選ぶことはできません。');
+      return;
+    }
+    gapErrorBox.innerHTML = '';
+
+    const byMac = {};
+    gapOrder.forEach(m => { byMac[m] = gapRows.filter(r=>r.mac===m).sort((x,y)=>x.t_robot-y.t_robot); });
+
+    const useSteady = gapSteadyToggle.checked;
+    const startT = parseFloat(gapStartInput.value);
+    const validStart = useSteady && !isNaN(startT) ? startT : -Infinity;
+    const endRaw = gapEndInput.value.trim();
+    const validEnd = endRaw !== '' && !isNaN(parseFloat(endRaw)) ? parseFloat(endRaw) : Infinity;
+    const pairs = [];
+    let anyOffsetFailed = false;
+
+    for (let i=0; i<gapOrder.length-1; i++){
+      const aheadMac = gapOrder[i], behindMac = gapOrder[i+1];
+      const aheadRows = byMac[aheadMac], behindRows = byMac[behindMac];
+      if (!aheadRows.length || !behindRows.length){ anyOffsetFailed = true; continue; }
+      // behind(fwd視野を出す側)からahead(back視野を出す側)へのオフセット: ahead.t_robot - behind.t_robot
+      const offset = gapEstimateOffset(behindRows, aheadRows);
+      if (offset === null){ anyOffsetFailed = true; continue; }
+      // t0はこのペアのbehind側ロボット自身のt_robot基準（他ペアとクロックの桁が違うため、ペアごとに定義する）
+      const t0 = behindRows[0].t_robot;
+      const merged = gapComputePair(aheadRows, behindRows, offset, t0);
+      const validPts = merged.filter(m => m.dist !== null);
+      const validRate = merged.length ? validPts.length / merged.length : 0;
+      const statsPts = validPts.filter(m => m.t >= validStart && m.t <= validEnd);
+      const vals = statsPts.map(m=>m.dist);
+      const n = vals.length;
+      const mean = n ? vals.reduce((s,v)=>s+v,0)/n : NaN;
+      const std = n>1 ? Math.sqrt(vals.reduce((s,v)=>s+(v-mean)**2,0)/(n-1)) : NaN;
+      pairs.push({ aheadMac, behindMac, offset, points: validPts, validRate, n, mean, std,
+                   color: GAP_COLORS[i % GAP_COLORS.length] });
+    }
+
+    if (!pairs.length){
+      gapShowError(anyOffsetFailed
+        ? 'どのペアもutc_timeが一致する行が無く、クロックオフセットを較正できませんでした。'
+        : 'ギャップを計算できませんでした。');
+      return;
+    }
+
+    gapRenderTable(pairs);
+    gapResultBlock.style.display = 'block';
+    gapDrawChart(pairs, validStart, validEnd);
+  }
+
+  function gapRenderTable(pairs){
+    let html = '<tr><th>ペア</th><th>mean (m)</th><th>std (m)</th><th>OR検出率</th><th>n</th><th>offset (s)</th></tr>';
+    pairs.forEach(p=>{
+      const validClass = p.validRate > 0.9 ? 'gv-ok' : p.validRate > 0.6 ? 'gv-warn' : 'gv-danger';
+      html += `<tr>
+        <td><span class="gswatch" style="background:${p.color}"></span>${gapMacLabel(p.aheadMac)} → ${gapMacLabel(p.behindMac)}</td>
+        <td>${p.n ? p.mean.toFixed(3) : '–'}</td>
+        <td>${p.n ? p.std.toFixed(4) : '–'}</td>
+        <td class="${validClass}">${(p.validRate*100).toFixed(1)}%</td>
+        <td>${p.n}</td>
+        <td>${p.offset.toFixed(2)}</td>
+      </tr>`;
+    });
+    gapPairTable.innerHTML = html;
+
+    gapLegend.innerHTML = pairs.map(p =>
+      `<span><span class="gswatch" style="background:${p.color}"></span>${gapMacLabel(p.aheadMac)}→${gapMacLabel(p.behindMac)}</span>`
+    ).join('');
+  }
+
+  function gapDrawChart(pairs, validStart, validEnd){
+    const canvas = document.getElementById('gapChart');
+    const wrap = document.getElementById('gapChartWrap');
+    const dpr = window.devicePixelRatio || 1;
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    canvas.width = w*dpr; canvas.height = h*dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,w,h);
+
+    const marginL = 56, marginR = 20, marginT = 16, marginB = 40;
+    const plotW = w - marginL - marginR;
+    const plotH = h - marginT - marginB;
+
+    const yMin = 0, yMax = 0.5; // 固定
+    const allT = pairs.flatMap(p => p.points.map(pt=>pt.t));
+    const dataMax = allT.length ? Math.max(...allT) : 1;
+    const dataMin = 0;
+    // 表示範囲は指定された開始/終了で切り取る（データの範囲内にクランプ）
+    const tMin = isFinite(validStart) ? Math.max(validStart, dataMin) : dataMin;
+    const tMax = isFinite(validEnd) ? Math.min(validEnd, dataMax) : dataMax;
+
+    ctx.font = '11px ui-monospace, monospace';
+
+    for (let yv=0; yv<=0.5+1e-9; yv+=0.1){
+      const y = marginT + plotH - (yv-yMin)/(yMax-yMin)*plotH;
+      ctx.strokeStyle = CHART.gridMain;
+      ctx.beginPath(); ctx.moveTo(marginL, y); ctx.lineTo(marginL+plotW, y); ctx.stroke();
+      ctx.fillStyle = CHART.textDim;
+      ctx.fillText(yv.toFixed(1), 6, y+4);
+    }
+
+    const tStep = gapNiceStep(tMax - tMin);
+    const tickStart = Math.ceil(tMin / tStep) * tStep;
+    for (let tv=tickStart; tv<=tMax+1e-9; tv+=tStep){
+      const x = marginL + (tv-tMin)/((tMax-tMin)||1)*plotW;
+      ctx.strokeStyle = CHART.gridFaint;
+      ctx.beginPath(); ctx.moveTo(x, marginT); ctx.lineTo(x, marginT+plotH); ctx.stroke();
+      ctx.fillStyle = CHART.textDim;
+      ctx.fillText(tv.toFixed(0)+'s', x-8, marginT+plotH+16);
+    }
+
+    ctx.strokeStyle = CHART.gridMain;
+    ctx.strokeRect(marginL, marginT, plotW, plotH);
+
+    ctx.save();
+    ctx.translate(14, marginT + plotH/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillStyle = CHART.textDim;
+    ctx.font = '11px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('distance (m)', 0, 0);
+    ctx.restore();
+
+    // 表示範囲外(t<tMin または t>tMax)の点は描画しない（線もそこで途切れる）
+    pairs.forEach(p=>{
+      ctx.beginPath();
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = 1.6;
+      let started = false;
+      p.points.forEach(pt=>{
+        if (pt.dist === null || pt.t < tMin || pt.t > tMax) { started = false; return; }
+        const x = marginL + (pt.t-tMin)/((tMax-tMin)||1)*plotW;
+        const yClamped = Math.max(yMin, Math.min(yMax, pt.dist));
+        const y = marginT + plotH - (yClamped-yMin)/(yMax-yMin)*plotH;
+        if (!started){ ctx.moveTo(x,y); started = true; } else { ctx.lineTo(x,y); }
+      });
+      ctx.stroke();
+    });
+  }
+
+  function gapNiceStep(range){
+    if (range <= 0) return 1;
+    if (range <= 20) return 2;
+    if (range <= 60) return 5;
+    if (range <= 150) return 10;
+    return 30;
+  }
+
+  window.addEventListener('resize', ()=>{
+    if (gapResultBlock.style.display !== 'none' && gapOrder.length) gapComputeAndRender();
+  });
+})();
+</script>
+</body>
+</html>

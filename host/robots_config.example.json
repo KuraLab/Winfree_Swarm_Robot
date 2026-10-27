@@ -1,0 +1,61 @@
+{
+  "_comment": "これは例。robots_config.json にコピーして使う（robots_config.json は .gitignore 済み）。キーはロボットのMAC下位3バイト(16進6桁)で、起動時にシリアルへ [WiFi] ... ID:XXXXXX と出る。未登録のロボットはテレメトリ受信時に自動追加されfollower扱いになるので、ダッシュボード上でラベルと役割を直してもよい。espota_path は espota.py のフルパス。role は 'leader' か 'follower'。lidar_hz は null なら label の番号から自動割当(7〜13Hz)。",
+  "espota_path": "/path/to/Arduino15/packages/esp32/hardware/esp32/2.0.17/tools/espota.py",
+  "robots": {
+    "AAAAA1": {
+      "label": "01",
+      "role": "leader",
+      "ota_password": "CHANGE_ME",
+      "lidar_hz": null
+    },
+    "AAAAA2": {
+      "label": "02",
+      "role": "follower",
+      "ota_password": "",
+      "lidar_hz": null
+    },
+    "AAAAA3": {
+      "label": "03",
+      "role": "follower",
+      "ota_password": "",
+      "lidar_hz": null
+    }
+  },
+  "role_defaults": {
+    "leader": {
+      "g": 50,
+      "t": 0.7,
+      "P": 5,
+      "I": 2,
+      "o": 17.59291886010284,
+      "y": 10,
+      "D": 0.01,
+      "w": 1,
+      "L": 0.1,
+      "r": 0,
+      "f": 40,
+      "F": 0.03
+    },
+    "follower": {
+      "k": 14,
+      "g": 300,
+      "P": 10,
+      "I": 5,
+      "s": 0.25,
+      "x": 1,
+      "j": 0,
+      "G": 0.8,
+      "a": 0,
+      "y": 3,
+      "o": 12.566370614359172,
+      "t": 0.5,
+      "f": 40,
+      "D": 0,
+      "L": 0.25,
+      "r": 0,
+      "Z": 1,
+      "K": 200,
+      "F": 0.5
+    }
+  }
+}
